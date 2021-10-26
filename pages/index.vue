@@ -1,8 +1,19 @@
+
 <template lang='pug'>
 article
-  h1 Hello, World!
+  TntBlogList(v-if='posts' :articles='posts')
 </template>
 
 <script>
-export default {}
+export default {
+  async asyncData ({ $content }) {
+    let posts = await $content('blog')
+      .where({ draft: { $ne: true } })
+      .sortBy('date', 'desc')
+      .fetch()
+      .catch(() => {})
+
+    return { posts }
+  }
+}
 </script>
