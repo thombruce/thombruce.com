@@ -7,14 +7,17 @@ article
 
 <script>
 export default {
-  async asyncData ({ $content, params }) {
+  async asyncData ({ $content, $taxonomies, params }) {
     const slug = params.page
 
     const posts = await $content(slug)
       .where({ draft: { $ne: true } })
       .sortBy('date', 'desc')
       .fetch()
-      .catch(async () => {})
+      .catch(async () => {
+        const terms = await $taxonomies(slug, '', { deep: true }).all()
+        return terms
+      })
 
     return { slug, posts }
   }
