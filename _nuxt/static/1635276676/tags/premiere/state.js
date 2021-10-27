@@ -1,1 +1,0 @@
-window.__NUXT__=(function(a){return {staticAssetsBase:"\u002F_nuxt\u002Fstatic\u002F1635276676",layout:"default",error:a,serverRendered:true,routePath:"\u002Ftags\u002Fpremiere",config:{_app:{basePath:"\u002F",assetsPath:"\u002F_nuxt\u002F",cdnURL:a},content:{dbHash:"42391649"}},_img:{"/_ipx/uploads/loki-episode-1.png?s=200_200":"\u002F_nuxt\u002Fimage\u002F062a06.png"}}}(null));

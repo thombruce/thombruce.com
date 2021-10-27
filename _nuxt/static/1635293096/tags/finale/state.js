@@ -1,0 +1,1 @@
+window.__NUXT__=(function(a){return {staticAssetsBase:"\u002F_nuxt\u002Fstatic\u002F1635293096",layout:"default",error:a,serverRendered:true,routePath:"\u002Ftags\u002Ffinale",config:{_app:{basePath:"\u002F",assetsPath:"\u002F_nuxt\u002F",cdnURL:a},content:{dbHash:"0a094137"}},_img:{"/_ipx/uploads/loki-episode-6.png?s=200_200":"\u002F_nuxt\u002Fimage\u002Feb9634.png"}}}(null));
