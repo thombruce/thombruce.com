@@ -1,10 +1,10 @@
 <template lang='pug'>
 div
-  TntContent(v-if='!Array.isArray(post)' :article='post')
+  TntContent(v-if='!Array.isArray(content)' :article='content')
   article(v-else)
     header
       h1 {{ slug | titleize }}
-    TntBlogList(:articles='post')
+    TntBlogList(:articles='content')
 </template>
 
 <script>
@@ -12,7 +12,7 @@ export default {
   async asyncData ({ $content, $taxonomies, params }) {
     const slug = params.page
 
-    const post = await $content(params.section, slug)
+    const content = await $content(params.section, slug)
       .where({ draft: { $ne: true } })
       .fetch()
       .catch(async () => {
@@ -31,11 +31,11 @@ export default {
         return articles
       })
 
-    return { post }
+    return { content }
   },
   head () {
     return {
-      title: this.post.title
+      title: this.content.title
     }
   }
 }
