@@ -9,6 +9,7 @@ div
 
 <script>
 export default {
+  layout: 'modern',
   async asyncData ({ $content, $taxonomies, params }) {
     const slug = params.page
 

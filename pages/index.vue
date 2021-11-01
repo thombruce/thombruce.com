@@ -6,7 +6,7 @@ article
 
 <script>
 export default {
-  // layout: 'modern',
+  layout: 'modern',
   async asyncData ({ $content }) {
     let content = await $content('blog')
       .where({ draft: { $ne: true } })
