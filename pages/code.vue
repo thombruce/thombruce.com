@@ -63,21 +63,17 @@ import { faCodeBranch, faBug } from '@fortawesome/free-solid-svg-icons'
 
 export default {
   layout: 'modern',
-  async asyncData ({ $axios }) {
-    let favorites = await $axios.$get('https://api.github.com/users/thombruce/starred?per_page=100')
-    favorites = favorites.filter(favorite => favorite.owner.login === 'thombruce')
+  async asyncData ({ store }) {
+    const favorites = await store.dispatch('code/favorites/fetchAll')
+    const events = await store.dispatch('code/events/fetchAll')
+    const repos = await store.dispatch('code/repos/fetchAll')
 
-    const events = await $axios.$get('https://api.github.com/users/thombruce/events?per_page=100')
-    const repos = await $axios.$get('https://api.github.com/users/thombruce/repos?per_page=100&type=public&sort=updated')
-    
     return { favorites, events, repos }
   },
   async created () {
-    const favorites = await this.$axios.$get('https://api.github.com/users/thombruce/starred?per_page=100')
-    this.favorites = favorites.filter(favorite => favorite.owner.login === 'thombruce')
-
-    this.events = await this.$axios.$get('https://api.github.com/users/thombruce/events?per_page=100')
-    this.repos = await this.$axios.$get('https://api.github.com/users/thombruce/repos?per_page=100&type=public&sort=updated')
+    this.favorites = await this.$store.dispatch('code/favorites/fetchAll')
+    this.events = await this.$store.dispatch('code/events/fetchAll')
+    this.repos = await this.$store.dispatch('code/repos/fetchAll')
   },
   computed: {
     faCodeBranch () {
