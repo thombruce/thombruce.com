@@ -1,5 +1,15 @@
 <template lang='pug'>
 article
+  h2 Favourites
+  .flex.gap-2
+    article.flex-1.card.card-side.bordered.mb-4(v-for='favorite in favorites')
+      .card-body
+        header
+          h2.card-title
+            NuxtLink(:to='favorite.html_url') {{ favorite.name }}
+        div(v-if='favorite.description')
+          p {{ favorite.description }}
+
   h2 Activity
   .table-container
     table
@@ -20,6 +30,7 @@ article
                 img.inline-block.align-middle(:src='event.actor.avatar_url')
             span.inline-block.align-middle {{ event.actor.login }}
           td {{ event.created_at }}
+
   h2 Repositories
   .table-container
     table
@@ -49,15 +60,22 @@ article
 
 <script>
 import { faCodeBranch, faBug } from '@fortawesome/free-solid-svg-icons'
+
 export default {
   layout: 'modern',
   async asyncData ({ $axios }) {
+    let favorites = await $axios.$get('https://api.github.com/users/thombruce/starred?per_page=100')
+    favorites = favorites.filter(favorite => favorite.owner.login === 'thombruce')
+
     const events = await $axios.$get('https://api.github.com/users/thombruce/events?per_page=100')
     const repos = await $axios.$get('https://api.github.com/users/thombruce/repos?per_page=100&type=public&sort=updated')
     
-    return { events, repos }
+    return { favorites, events, repos }
   },
   async created () {
+    const favorites = await this.$axios.$get('https://api.github.com/users/thombruce/starred?per_page=100')
+    this.favorites = favorites.filter(favorite => favorite.owner.login === 'thombruce')
+
     this.events = await this.$axios.$get('https://api.github.com/users/thombruce/events?per_page=100')
     this.repos = await this.$axios.$get('https://api.github.com/users/thombruce/repos?per_page=100&type=public&sort=updated')
   },
