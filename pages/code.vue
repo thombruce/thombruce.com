@@ -10,26 +10,27 @@ article
         div(v-if='favorite.description')
           p {{ favorite.description }}
 
-  h2 Activity
-  .table-container
-    table
-      thead
-        tr
-          th Type
-          th Repo
-          th Author
-          th Time
-      tbody
-        tr(v-for='(event, i) in events')
-          td {{ event.type }}
-          td
-            a(:href="'https://github.com/' + event.repo.name") {{ event.repo.name }}
-          td
-            .avatar.mr-1
-              .mb-8.rounded-full.w-6.h-6
-                img.inline-block.align-middle(:src='event.actor.avatar_url')
-            span.inline-block.align-middle {{ event.actor.login }}
-          td {{ event.created_at }}
+  template(v-if='events.length')
+    h2 Activity
+    .table-container
+      table
+        thead
+          tr
+            th Type
+            th Repo
+            th Author
+            th Time
+        tbody
+          tr(v-for='(event, i) in events')
+            td {{ event.type }}
+            td
+              a(:href="'https://github.com/' + event.repo.name") {{ event.repo.name }}
+            td
+              .avatar.mr-1
+                .mb-8.rounded-full.w-6.h-6
+                  img.inline-block.align-middle(:src='event.actor.avatar_url')
+              span.inline-block.align-middle {{ event.actor.login }}
+            td {{ event.created_at }}
 
   h2 Repositories
   .table-container
@@ -63,17 +64,19 @@ import { faCodeBranch, faBug } from '@fortawesome/free-solid-svg-icons'
 
 export default {
   layout: 'modern',
+  data () {
+    return {
+      events: []
+    }
+  },
   async asyncData ({ store }) {
     const favorites = await store.dispatch('code/favorites/fetchAll')
-    const events = await store.dispatch('code/events/fetchAll')
     const repos = await store.dispatch('code/repos/fetchAll')
 
-    return { favorites, events, repos }
+    return { favorites, repos }
   },
   async created () {
-    this.favorites = await this.$store.dispatch('code/favorites/fetchAll')
     this.events = await this.$store.dispatch('code/events/fetchAll')
-    this.repos = await this.$store.dispatch('code/repos/fetchAll')
   },
   computed: {
     faCodeBranch () {
