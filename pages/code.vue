@@ -6,7 +6,7 @@ article
       .card-body
         header
           h2.card-title
-            NuxtLink(:to='favorite.html_url') {{ favorite.name }}
+            a(:href='favorite.html_url') {{ favorite.name }}
         div(v-if='favorite.description')
           p {{ favorite.description }}
 
