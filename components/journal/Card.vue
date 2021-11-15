@@ -7,7 +7,8 @@ article.card.card-side.bordered.mb-4
     header
       h2.card-title(v-if='article.title')
         NuxtLink(:to='article') {{ article.title }}
-      time(v-if='article.date' :datetime='article.date') {{ article.date | toLocaleString }}
+      NuxtLink(v-if='article.date' :to='article')
+        time(:datetime='article.date') {{ article.date | toLocaleString }}
     TntContentBody(:article='article')
 </template>
 
