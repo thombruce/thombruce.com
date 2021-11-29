@@ -1903,22 +1903,22 @@
   dependencies:
     "@types/node" "*"
 
-"@unlabel/nuxt@^0.1.30":
-  version "0.1.30"
-  resolved "https://registry.yarnpkg.com/@unlabel/nuxt/-/nuxt-0.1.30.tgz#2ba135ec372f11bdc9fe221167e1f76397996eb1"
-  integrity sha512-64UjlJZKQh45Yu32qcHYm5OmmvmeCFhmOIk7m0Z0U9z/hE0xaugsJeGJMYmInj8it1boE2V5esGM7x5P3OwZSA==
+"@unlabel/nuxt@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@unlabel/nuxt/-/nuxt-0.2.0.tgz#c499e0809ac22216a8759ae96cce1a9bda71bf9a"
+  integrity sha512-jrSbK06dFVNifdcWRb46++NpA9YGyx4EbeOQp433EINwl6maoz/bL0sLdPBww917+G25Wlv+Kv8zNaQnaUkRBg==
   dependencies:
     "@nuxt/image" "^0.5.0"
     "@nuxtjs/tailwindcss" "^4.1.3"
     "@thombruce/nuxt-taxonomies" "^0.2.0"
-    "@unlabel/vue" "^0.1.30"
+    "@unlabel/vue" "^0.2.0"
     pug-plain-loader "^1.1.0"
     simple-icons "^5.10.0"
 
-"@unlabel/vue@^0.1.30":
-  version "0.1.30"
-  resolved "https://registry.yarnpkg.com/@unlabel/vue/-/vue-0.1.30.tgz#d50e3b6087b8897522be453cca329c014224a82a"
-  integrity sha512-fzUTWSwVEU8u0seOBzrjWszQwWdfHWToDGesGMI2Q2RJ19Gg2sNfx3tDl9RKqF4EwJeLwwzHKi/oKYWTbfoEJw==
+"@unlabel/vue@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@unlabel/vue/-/vue-0.2.0.tgz#577f0a9f66294559e25d4d97c91a0bb03941bb44"
+  integrity sha512-NHNTFn6gOJtoknih+GK8lUgQxhDFW50yiPViGUAAlmhvwaTS/5XMHsccVlZDLz/Jp/1C6yNxus+LtcUA9nB+TQ==
   dependencies:
     "@fortawesome/fontawesome-svg-core" "^1.2.36"
     "@fortawesome/free-solid-svg-icons" "^5.15.4"
