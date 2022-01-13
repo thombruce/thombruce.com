@@ -4,7 +4,7 @@ export default {
 
   // Global page headers: https://go.nuxtjs.dev/config-head
   head: {
-    title: 'thombruce.com',
+    title: 'Thom Bruce',
     htmlAttrs: {
       lang: 'en'
     },
@@ -32,6 +32,7 @@ export default {
 
   // Modules for dev and build (recommended): https://go.nuxtjs.dev/config-modules
   buildModules: [
+    '@unlabel/nuxt'
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
