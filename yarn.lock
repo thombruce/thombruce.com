@@ -1879,10 +1879,10 @@
   dependencies:
     "@types/node" "*"
 
-"@unlabel/nuxt@^0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@unlabel/nuxt/-/nuxt-0.3.0.tgz#ada3ec16c7a359575fcfad273a5fd1c111ee9cc3"
-  integrity sha512-2vDqGA5qgzz2REhMaVU4WdDrPaz+QuMNEJ4lytd9Cj0bm8lJcRvGatVa5/h6kvfIAHBgk20ZbtKbb4+I/mPUZA==
+"@unlabel/nuxt@^0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@unlabel/nuxt/-/nuxt-0.3.1.tgz#95da2e3b3ca00ba34d03c05820978cc15926ca4c"
+  integrity sha512-+w+tdeW9lEj0cuJFqoyR5b/12CLdi5ub+j07nCQoEs+goXo7rpliKfj6z6pQXe/81BAX/1hFj7MxyUgI3hP5rw==
   dependencies:
     "@nuxt/image" "^0.5.0"
     "@nuxtjs/tailwindcss" "^4.1.3"
