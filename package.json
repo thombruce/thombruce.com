@@ -19,6 +19,6 @@
     "webpack": "^4.46.0"
   },
   "devDependencies": {
-    "@unlabel/nuxt": "^0.3.1"
+    "@unlabel/nuxt": "^0.3.2"
   }
 }
