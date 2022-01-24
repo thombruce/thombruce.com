@@ -1519,10 +1519,10 @@
   resolved "https://registry.yarnpkg.com/@polka/url/-/url-1.0.0-next.21.tgz#5de5a2385a35309427f6011992b544514d559aa1"
   integrity sha512-a5Sab1C4/icpTZVzZc5Ghpz88yQtGOyNqYXcZgOssB2uuAr+wF/MvN6bgtW32q7HHrvBki+BsZ0OuNv6EV3K9g==
 
-"@rockband/nuxt@^0.5.1":
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.5.1.tgz#c887f8ba06b0e81386bd97ba9eb2f6113178221c"
-  integrity sha512-cGDAplJqomvM1BkCnmeZA9Mg1r8Y/vQKzlx/16fZ2AsnghVbvc6qyaXcjl4ZNxphOYYUzLfbAoPWzoki1bbJoQ==
+"@rockband/nuxt@^0.5.2":
+  version "0.5.2"
+  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.5.2.tgz#3e0515182a29e76fc2986d45e2a8f3b39b8640a6"
+  integrity sha512-fwy1DuhaKXiZi3HriXOlbrdOzc55h6d6AyIKW2RFrF0cJxz7Bpgqa4vemZJewGSQKro2WZJGSgRLA3mhaW62Ew==
   dependencies:
     "@nuxt/content" "^1.15.1"
     "@nuxt/image" "^0.5.0"
@@ -1531,7 +1531,7 @@
     "@nuxtjs/pwa" "^3.3.5"
     "@nuxtjs/tailwindcss" "^4.1.3"
     "@rockband/vue" "^0.5.0"
-    "@thombruce/nuxt-taxonomies" "^0.2.0"
+    "@thombruce/nuxt-taxonomies" "^0.3.0"
     highlight.js "^11.4.0"
     pug-plain-loader "^1.1.0"
     simple-icons "^5.10.0"
@@ -1573,10 +1573,10 @@
     lodash.merge "^4.6.2"
     lodash.uniq "^4.5.0"
 
-"@thombruce/nuxt-taxonomies@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@thombruce/nuxt-taxonomies/-/nuxt-taxonomies-0.2.0.tgz#342f87cb4c34086345e6f7842c56c6364fea678e"
-  integrity sha512-ICemyAriBkLsV5OjY4jyuSo1T31QzgzpvyFHIL2w2om6eVyJS9ojdkKjMQtgvw0PQBTlmnFRfit7PBpuwCvrTA==
+"@thombruce/nuxt-taxonomies@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@thombruce/nuxt-taxonomies/-/nuxt-taxonomies-0.3.0.tgz#085d53f0882200369922b4f2836024d7556f53c8"
+  integrity sha512-t3Pu6tW7I2gnxnJW4iqbyL4Y5QqUUhLcQ6TmU9AnrayLo6XqBkuzACbnP5NNtsNeZmcgcHlx7wAFJYOaWieSkg==
   dependencies:
     lodash "^4.17.21"
 
