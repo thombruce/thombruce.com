@@ -1504,23 +1504,25 @@
   resolved "https://registry.yarnpkg.com/@polka/url/-/url-1.0.0-next.21.tgz#5de5a2385a35309427f6011992b544514d559aa1"
   integrity sha512-a5Sab1C4/icpTZVzZc5Ghpz88yQtGOyNqYXcZgOssB2uuAr+wF/MvN6bgtW32q7HHrvBki+BsZ0OuNv6EV3K9g==
 
-"@rockband/nuxt@^0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.4.0.tgz#a526524b2d7c696f67bb316c3a561084ac4897b1"
-  integrity sha512-aayVMMbs7lEaelRKPyHrf6LmcLUCNUNIXTVZBngzJPD1JD7ALK4VFKo2SnuBOJBfnCbqBSN4Tr9H99ldrpVEmA==
+"@rockband/nuxt@^0.5.0":
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.5.0.tgz#d72d220ff913ad028ca44b711f2e4747445114b3"
+  integrity sha512-tTZSpMNwNpWgT+yHNDxuLrY6n2yxnZQ7w6IFnim0xzZNPFn6wpZnfy+JhcarSY5pwp8vI2bMpghLwQt6xsOLdw==
   dependencies:
+    "@nuxt/content" "^1.15.1"
     "@nuxt/image" "^0.5.0"
     "@nuxtjs/color-mode" "^2.1.1"
     "@nuxtjs/tailwindcss" "^4.1.3"
-    "@rockband/vue" "^0.4.0"
+    "@rockband/vue" "^0.5.0"
     "@thombruce/nuxt-taxonomies" "^0.2.0"
+    highlight.js "^11.4.0"
     pug-plain-loader "^1.1.0"
     simple-icons "^5.10.0"
 
-"@rockband/vue@^0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@rockband/vue/-/vue-0.4.0.tgz#fe32b8c77cdb037cacc8df53f072230faa6137ce"
-  integrity sha512-VREhSZlf8e4nogvKWFLR4AWVvGpMM0NoL3J8dazMXcWPeJK6OsdEt3zrPXswIQp7HxupNItZD+CdEIEharB8rA==
+"@rockband/vue@^0.5.0":
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/@rockband/vue/-/vue-0.5.0.tgz#44d988e3b037355c7e7708198668a38fcad3d0be"
+  integrity sha512-8kSiI8EKA+MJsh7xdlPiJI4RY7Y9r+dCKi/xrup93O26EQv8oPPGnS456fgeU5ywd+Q3ltgu2mMySEk3Y1qOBQ==
   dependencies:
     "@fortawesome/fontawesome-svg-core" "^1.2.36"
     "@fortawesome/free-solid-svg-icons" "^5.15.4"
@@ -5019,6 +5021,11 @@ hex-color-regex@^1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/hex-color-regex/-/hex-color-regex-1.1.0.tgz#4c06fccb4602fe2602b3c93df82d7e7dbf1a8a8e"
   integrity sha512-l9sfDFsuqtOqKDsQdqrMRk0U85RZc0RtOR9yPI7mRVOa4FsR/BVnZ0shmQRM96Ji99kYZP/7hn1cedc1+ApsTQ==
+
+highlight.js@^11.4.0:
+  version "11.4.0"
+  resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-11.4.0.tgz#34ceadd49e1596ee5aba3d99346cdfd4845ee05a"
+  integrity sha512-nawlpCBCSASs7EdvZOYOYVkJpGmAOKMYZgZtUqSRqodZE0GRVcFKwo1RcpeOemqh9hyttTdd5wDBwHkuSyUfnA==
 
 hmac-drbg@^1.0.1:
   version "1.0.1"

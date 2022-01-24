@@ -32,15 +32,14 @@ export default {
 
   // Modules for dev and build (recommended): https://go.nuxtjs.dev/config-modules
   buildModules: [
-    '@rockband/nuxt'
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
   modules: [
     // https://go.nuxtjs.dev/axios
     '@nuxtjs/axios',
-    // https://go.nuxtjs.dev/content
-    '@nuxt/content',
+    // https://thombruce.github.io/rockband
+    '@rockband/nuxt',
   ],
 
   // Axios module configuration: https://go.nuxtjs.dev/config-axios
