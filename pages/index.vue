@@ -2,7 +2,7 @@
 <template lang='pug'>
 div
   article.max-w-prose.mx-auto
-    TntBlogList(v-if='content' :articles='content')
+    RockBandBlogList(v-if='content' :articles='content')
 </template>
 
 <script>
