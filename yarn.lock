@@ -957,10 +957,10 @@
   resolved "https://registry.yarnpkg.com/@fortawesome/vue-fontawesome/-/vue-fontawesome-2.0.6.tgz#87e691ed87f28f4667238573a29743f543a087f6"
   integrity sha512-V3vT3flY15AKbUS31aZOP12awQI3aAzkr2B1KnqcHLmwrmy51DW3pwyBczKdypV8QxBZ8U68Hl2XxK2nudTxpg==
 
-"@fountainjs/nuxt@^1.8.1":
-  version "1.8.1"
-  resolved "https://registry.yarnpkg.com/@fountainjs/nuxt/-/nuxt-1.8.1.tgz#d7963a9c10cf898437cb4697f25491d679bc3223"
-  integrity sha512-SEdulkJo7QbmujiyLIOAEdL4m9F1wCrEzYo1DBfAHilBXvzXEM4ZUmXbX6rPbjScItaUIRDITpXBYO/bRgWyQA==
+"@fountainjs/nuxt@^1.8.2":
+  version "1.8.2"
+  resolved "https://registry.yarnpkg.com/@fountainjs/nuxt/-/nuxt-1.8.2.tgz#09d81fd5b46f78ae1a2f385eeb8c5596eddf7138"
+  integrity sha512-1IiDMRxn+b+8oR57JTJsp+gr3YzFjuMWBNpbYBPEndO2/WyZ0EOblIv0keLTuTwV7e4D63saXbnYRwAqwTQY7A==
   dependencies:
     "@fountainjs/vue" "^1.8.0"
 
