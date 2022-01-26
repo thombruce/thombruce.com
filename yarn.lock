@@ -957,6 +957,25 @@
   resolved "https://registry.yarnpkg.com/@fortawesome/vue-fontawesome/-/vue-fontawesome-2.0.6.tgz#87e691ed87f28f4667238573a29743f543a087f6"
   integrity sha512-V3vT3flY15AKbUS31aZOP12awQI3aAzkr2B1KnqcHLmwrmy51DW3pwyBczKdypV8QxBZ8U68Hl2XxK2nudTxpg==
 
+"@fountainjs/nuxt@^1.8.1":
+  version "1.8.1"
+  resolved "https://registry.yarnpkg.com/@fountainjs/nuxt/-/nuxt-1.8.1.tgz#d7963a9c10cf898437cb4697f25491d679bc3223"
+  integrity sha512-SEdulkJo7QbmujiyLIOAEdL4m9F1wCrEzYo1DBfAHilBXvzXEM4ZUmXbX6rPbjScItaUIRDITpXBYO/bRgWyQA==
+  dependencies:
+    "@fountainjs/vue" "^1.8.0"
+
+"@fountainjs/parser@^1.8.0":
+  version "1.8.0"
+  resolved "https://registry.yarnpkg.com/@fountainjs/parser/-/parser-1.8.0.tgz#9c2f444737f3266216a1919e6c5b9e9bd58066cb"
+  integrity sha512-I547yxf7RIup2jtZNIPPFjrBDbE+P4+Xbn+V4aK9kkYic2JmfrMSjJ5IrNvNn3mDrpY3M3eROnA1GErVeMdFow==
+
+"@fountainjs/vue@^1.8.0":
+  version "1.8.0"
+  resolved "https://registry.yarnpkg.com/@fountainjs/vue/-/vue-1.8.0.tgz#67f0b160aaa4ae320495855e122dd81aeb7b7184"
+  integrity sha512-hCLLlSsrMmxP2YWfdjFrFIemQSRjXo2V+JVdsxbQlTVhoeJSJktbWBAPGQYrWq0EZB1bVtUoaSIkmakCr78DVw==
+  dependencies:
+    "@fountainjs/parser" "^1.8.0"
+
 "@gar/promisify@^1.0.1":
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@gar/promisify/-/promisify-1.1.2.tgz#30aa825f11d438671d585bd44e7fd564535fc210"
