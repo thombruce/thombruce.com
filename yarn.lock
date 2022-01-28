@@ -1538,10 +1538,10 @@
   resolved "https://registry.yarnpkg.com/@polka/url/-/url-1.0.0-next.21.tgz#5de5a2385a35309427f6011992b544514d559aa1"
   integrity sha512-a5Sab1C4/icpTZVzZc5Ghpz88yQtGOyNqYXcZgOssB2uuAr+wF/MvN6bgtW32q7HHrvBki+BsZ0OuNv6EV3K9g==
 
-"@rockband/nuxt@^0.7.0":
-  version "0.7.0"
-  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.7.0.tgz#57c062644f0b32304f05b2b90626cd8c4278215f"
-  integrity sha512-HrZT57yYAkLJWu+cRm6HGn0hH9KP+ZIffKr4fmn9toaTF4t/crmfX2PlLbArGeuiizIKzsIuagXCIU3tyioe+g==
+"@rockband/nuxt@^0.7.1":
+  version "0.7.1"
+  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.7.1.tgz#74ab866b1572fb4fe8905004e9dc9cc84ce7809d"
+  integrity sha512-grQB7GiDYqnDJTSGyWpgffFbfHuzcquKXbn0J+Tpl9570U37lu9No/uKBSjInAIklT0ushvuDyX5Z6+aabyX3g==
   dependencies:
     "@nuxt/content" "^1.15.1"
     "@nuxt/image" "^0.5.0"
@@ -1549,16 +1549,16 @@
     "@nuxtjs/color-mode" "^2.1.1"
     "@nuxtjs/pwa" "^3.3.5"
     "@nuxtjs/tailwindcss" "^4.1.3"
-    "@rockband/vue" "^0.7.0"
+    "@rockband/vue" "^0.7.1"
     "@thombruce/nuxt-taxonomies" "^0.3.0"
     highlight.js "^11.4.0"
     pug-plain-loader "^1.1.0"
     simple-icons "^5.10.0"
 
-"@rockband/vue@^0.7.0":
-  version "0.7.0"
-  resolved "https://registry.yarnpkg.com/@rockband/vue/-/vue-0.7.0.tgz#bb89d7a2d2b3ba7191ba9cfd580b4e250e35e2a8"
-  integrity sha512-vequ694Cwsg6DzHZisYyMzWyBZkWxaEOfrpQSEKblNd0CJBa6vv4u1r8pDJyQt6h5dZ73NB0983F8tRRhwK/Ng==
+"@rockband/vue@^0.7.1":
+  version "0.7.1"
+  resolved "https://registry.yarnpkg.com/@rockband/vue/-/vue-0.7.1.tgz#316239eee5a4c1da1be79ea7596ed7a263090eb2"
+  integrity sha512-qswDJmZNfTiJqeHHUwSzVMoDxp3Bj4QyLC0DYNL71zs8sFDhsGvFHrJ0+4I+1Y64vdGELx98eUTqPyPZ71c8Jg==
   dependencies:
     "@fortawesome/fontawesome-svg-core" "^1.2.36"
     "@fortawesome/free-solid-svg-icons" "^5.15.4"
