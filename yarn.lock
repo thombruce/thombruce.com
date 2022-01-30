@@ -928,10 +928,10 @@
     "@babel/helper-validator-identifier" "^7.16.7"
     to-fast-properties "^2.0.0"
 
-"@candyfloss/nuxt@^0.1.2":
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.2.tgz#6660bd8dbfc09efa77e0c29fe52f8993c19e2ce3"
-  integrity sha512-IW4i7OO4yq2OT4NWsks5OjH7720BRygZG2gu/KAEPp56wF0qFqXMnBc/3FZ1/fBq+8f12QBfwB2wnbnqD5MVWw==
+"@candyfloss/nuxt@^0.1.3":
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.3.tgz#470fdfcf931f6dcb33e8f4a82a9caa81b37d6fb8"
+  integrity sha512-RYPXjO6/yvrMh04ZuMPVr6442hdB3LFBOU0+To42IbrxPB0cERHewuZeoguiiCu7YHnjDsl5g8D3IqNH3Q92Rg==
   dependencies:
     web3 "^1.7.0"
 
