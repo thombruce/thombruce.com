@@ -928,6 +928,13 @@
     "@babel/helper-validator-identifier" "^7.16.7"
     to-fast-properties "^2.0.0"
 
+"@candyfloss/nuxt@^0.1.2":
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.2.tgz#6660bd8dbfc09efa77e0c29fe52f8993c19e2ce3"
+  integrity sha512-IW4i7OO4yq2OT4NWsks5OjH7720BRygZG2gu/KAEPp56wF0qFqXMnBc/3FZ1/fBq+8f12QBfwB2wnbnqD5MVWw==
+  dependencies:
+    web3 "^1.7.0"
+
 "@csstools/convert-colors@^1.4.0":
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/@csstools/convert-colors/-/convert-colors-1.4.0.tgz#ad495dc41b12e75d588c6db8b9834f08fa131eb7"
