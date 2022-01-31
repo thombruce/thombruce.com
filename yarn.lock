@@ -930,10 +930,10 @@
   dependencies:
     web3 "^1.7.0"
 
-"@candyfloss/nuxt@^0.1.8":
-  version "0.1.8"
-  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.8.tgz#0741124ef387f7279aaa499b78fc24d23f31fed1"
-  integrity sha512-efLx/VIAR21lvxTzWYG8sjrv2dL0jKqNO/PTad/0YF+UUb2YFnk9sVf5XWhAprzZj1ZQW/7hGJ2yKOcXk5xcnw==
+"@candyfloss/nuxt@^0.1.9":
+  version "0.1.9"
+  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.9.tgz#db8bc508dbbd041c6b1ea300c8dae42814481e3d"
+  integrity sha512-QWtnngKa6uU05WBnrb6rCysVSVxtsL4HsVtXq77QCV1InmjX+udrCPwy+aaYqELa5+vllrr3lcJJAiyvcA7lzQ==
   dependencies:
     "@candyfloss/js" "^0.1.8"
 
