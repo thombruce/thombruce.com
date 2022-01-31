@@ -930,10 +930,18 @@
   dependencies:
     web3 "^1.7.0"
 
-"@candyfloss/nuxt@^0.1.10":
+"@candyfloss/nuxt@^0.1.11":
+  version "0.1.11"
+  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.11.tgz#b5c64318705f706abcceb8b1656bf6bf5e317acc"
+  integrity sha512-utfuEoEAsFiGg/kSW3FkFcHQutTG3z7HcPatjDIW1wV7d2K2IHZm0xEuVyCAvnvTPxAFaKc32XUL94jf5BkM5A==
+  dependencies:
+    "@candyfloss/js" "^0.1.10"
+    "@candyfloss/vue" "^0.1.10"
+
+"@candyfloss/vue@^0.1.10":
   version "0.1.10"
-  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.10.tgz#aacfe9447f0fcecda6af6862f5cdd35f471e10e3"
-  integrity sha512-CzHP9oNxPPG3p/ZJLeRL753vdXOQyIP212D0Yli6oN7CTKH7cM2z6cCUSvIKrJt6w2MIVfOretdXiHG1UQ8shg==
+  resolved "https://registry.yarnpkg.com/@candyfloss/vue/-/vue-0.1.10.tgz#20685138a0e0d955129dc18b6581e49483ab1b72"
+  integrity sha512-TIH1cK4x11HsZZ7TVgm4e4lXxW0xw4uXHp95zwEV8VLw4PzP3o/t7yyT8VNx+yxdcSIH+JksqJNae/HKTHcmRA==
   dependencies:
     "@candyfloss/js" "^0.1.10"
 
