@@ -39,7 +39,7 @@ export default {
   modules: [
     // https://thombruce.github.io/rockband
     '@rockband/nuxt',
-    '@candyfloss/nuxt',
+    ['@candyfloss/nuxt', { provider: 'https://mainnet.infura.io/v3/a185cad5258f4c89a0107035403eaa4e' }],
   ],
 
   // Axios module configuration: https://go.nuxtjs.dev/config-axios

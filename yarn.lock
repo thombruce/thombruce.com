@@ -923,19 +923,19 @@
     "@babel/helper-validator-identifier" "^7.16.7"
     to-fast-properties "^2.0.0"
 
-"@candyfloss/js@^0.1.7":
-  version "0.1.7"
-  resolved "https://registry.yarnpkg.com/@candyfloss/js/-/js-0.1.7.tgz#53331a1e91f306fd969297738af11e97b8e6bf80"
-  integrity sha512-7DdPLPlxXjsv27SQF3Q35ly4Rkiw3h4G5JiqBKvt7XQkwMw5UlsQs5ixxR/XCNoKq8adp2P/lUtcJ8LJAFWxrw==
+"@candyfloss/js@^0.1.8":
+  version "0.1.8"
+  resolved "https://registry.yarnpkg.com/@candyfloss/js/-/js-0.1.8.tgz#25f7de491ed345bd7e3043d2d3d239413c6ce3ff"
+  integrity sha512-iohXsdG7QwuaanXXTpEuCfNXjh+s6peDbcdNrl1GkeUqCdL/4jdj/3JaKk1mk6OHAyvxFSZBXbRYym6kfLqhCg==
   dependencies:
     web3 "^1.7.0"
 
-"@candyfloss/nuxt@^0.1.7":
-  version "0.1.7"
-  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.7.tgz#a3c6b24a7bf19b1468dce5fdd8cc78361ddfb8c3"
-  integrity sha512-AOommd+zlkJAZt4C2749cQ2vD7SZnDEEEFSH90N12qgkoqQcBJ95vyoCg3g61LC7bKRRzWnaWC4irBubA3jd4g==
+"@candyfloss/nuxt@^0.1.8":
+  version "0.1.8"
+  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.8.tgz#0741124ef387f7279aaa499b78fc24d23f31fed1"
+  integrity sha512-efLx/VIAR21lvxTzWYG8sjrv2dL0jKqNO/PTad/0YF+UUb2YFnk9sVf5XWhAprzZj1ZQW/7hGJ2yKOcXk5xcnw==
   dependencies:
-    "@candyfloss/js" "^0.1.7"
+    "@candyfloss/js" "^0.1.8"
 
 "@csstools/convert-colors@^1.4.0":
   version "1.4.0"

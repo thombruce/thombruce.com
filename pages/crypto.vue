@@ -8,9 +8,5 @@ div.py-10
 </template>
 
 <script>
-export default {
-  created() {
-    this.$candyfloss.init('https://mainnet.infura.io/v3/a185cad5258f4c89a0107035403eaa4e')
-  }
-}
+export default {}
 </script>
