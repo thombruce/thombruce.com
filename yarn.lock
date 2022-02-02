@@ -923,27 +923,27 @@
     "@babel/helper-validator-identifier" "^7.16.7"
     to-fast-properties "^2.0.0"
 
-"@candyfloss/js@^0.1.10":
-  version "0.1.10"
-  resolved "https://registry.yarnpkg.com/@candyfloss/js/-/js-0.1.10.tgz#4d099010573c6a08918c1f0b48d3941e23ab88fc"
-  integrity sha512-7zZ1tX3hOts4KdfC+WOmoN6ugipmlrU5J4Kuuzf+asi/2Xn1kI8BXh7VWhq2vhV3Z73GUEz0hhUxBlqEpCGFLw==
+"@candyfloss/js@^0.1.14":
+  version "0.1.14"
+  resolved "https://registry.yarnpkg.com/@candyfloss/js/-/js-0.1.14.tgz#b77520919423e3927e4de0bd8fee7537f7271a80"
+  integrity sha512-r5xw2n/JmbKW/7AMQcpd895riO8IKK8KmFyIiOpBygFdKZdQgyvqmSEs6cCWRBGekKg+LOFs/Oau6C6D737q3w==
   dependencies:
     web3 "^1.7.0"
 
-"@candyfloss/nuxt@^0.1.11":
-  version "0.1.11"
-  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.11.tgz#b5c64318705f706abcceb8b1656bf6bf5e317acc"
-  integrity sha512-utfuEoEAsFiGg/kSW3FkFcHQutTG3z7HcPatjDIW1wV7d2K2IHZm0xEuVyCAvnvTPxAFaKc32XUL94jf5BkM5A==
+"@candyfloss/nuxt@^0.1.14":
+  version "0.1.14"
+  resolved "https://registry.yarnpkg.com/@candyfloss/nuxt/-/nuxt-0.1.14.tgz#b128d8a399cd616b9c1429e7393360a86d60c3d9"
+  integrity sha512-kNu45UCWgTNDLWWPLzpbw97PhiGwtdTGAxObqX4UbWIj0053wEnworA/XjG0JTUepzhiRVe/MTbxCJ/+nzdjkg==
   dependencies:
-    "@candyfloss/js" "^0.1.10"
-    "@candyfloss/vue" "^0.1.10"
+    "@candyfloss/js" "^0.1.14"
+    "@candyfloss/vue" "^0.1.14"
 
-"@candyfloss/vue@^0.1.10":
-  version "0.1.10"
-  resolved "https://registry.yarnpkg.com/@candyfloss/vue/-/vue-0.1.10.tgz#20685138a0e0d955129dc18b6581e49483ab1b72"
-  integrity sha512-TIH1cK4x11HsZZ7TVgm4e4lXxW0xw4uXHp95zwEV8VLw4PzP3o/t7yyT8VNx+yxdcSIH+JksqJNae/HKTHcmRA==
+"@candyfloss/vue@^0.1.14":
+  version "0.1.14"
+  resolved "https://registry.yarnpkg.com/@candyfloss/vue/-/vue-0.1.14.tgz#340733f9f7ba6ccce7ff8ef3e3e8c8d04a35290e"
+  integrity sha512-l4OLnUmo5n4SNW6+nktni2VdryPkjrGiaWCivhzBuckNZzmOYYd2zgDEGWhzC4hS/BouWMlciXaUw0sGNlcaNw==
   dependencies:
-    "@candyfloss/js" "^0.1.10"
+    "@candyfloss/js" "^0.1.14"
 
 "@csstools/convert-colors@^1.4.0":
   version "1.4.0"
