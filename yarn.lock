@@ -1685,14 +1685,6 @@
     consola "^2.15.3"
     defu "^5.0.0"
 
-"@nuxtjs/color-mode@^2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@nuxtjs/color-mode/-/color-mode-2.1.1.tgz#374f995f56a8fe27c6263ab865a034a50e90c1ea"
-  integrity sha512-kGB/FoICF4RwZkfNBhL/yGrHfaUFpviYq6HGvSkZEm2dCpjRXIv9VsWoP0uzwxnoaRAQQOkkWjaGv/nSk0gUSQ==
-  dependencies:
-    defu "^5.0.0"
-    lodash.template "^4.5.0"
-
 "@nuxtjs/proxy@^2.1.0":
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/@nuxtjs/proxy/-/proxy-2.1.0.tgz#fa7715a11d237fa1273503c4e9e137dd1bf5575b"
@@ -1747,33 +1739,33 @@
   resolved "https://registry.yarnpkg.com/@polka/url/-/url-1.0.0-next.21.tgz#5de5a2385a35309427f6011992b544514d559aa1"
   integrity sha512-a5Sab1C4/icpTZVzZc5Ghpz88yQtGOyNqYXcZgOssB2uuAr+wF/MvN6bgtW32q7HHrvBki+BsZ0OuNv6EV3K9g==
 
-"@rockband/nuxt@^0.8.0":
-  version "0.8.1"
-  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.8.1.tgz#2bdf467e70915a89b80a5be61c9a11206fb3539d"
-  integrity sha512-bnS7ROp0MQNkdt3+r/YekLR6OhK+VBwGOx0UTZmEAXmAIsLIeMNpt3pwLgqvnT1gDXI9mdyIzV9cOeAsuFetuQ==
+"@rockband/nuxt@^0.9.2":
+  version "0.9.2"
+  resolved "https://registry.yarnpkg.com/@rockband/nuxt/-/nuxt-0.9.2.tgz#458712467f2049e8827ea410413f5b0320ba58bd"
+  integrity sha512-chM7y4xLYfNOvxcm6Dbxzjr+nMBI5km05IQ/O/nLa9Jv/EXFReTJDIlEeBGwfBmNT2+7cK37la/DCWWoKcO56Q==
   dependencies:
     "@nuxt/content" "^1.15.1"
     "@nuxt/image" "^0.5.0"
     "@nuxtjs/axios" "^5.13.6"
-    "@nuxtjs/color-mode" "^2.1.1"
     "@nuxtjs/pwa" "^3.3.5"
     "@nuxtjs/tailwindcss" "^4.1.3"
-    "@rockband/vue" "^0.8.0"
+    "@rockband/vue" "^0.9.2"
     "@thombruce/nuxt-taxonomies" "^0.3.0"
     highlight.js "^11.4.0"
     pug-plain-loader "^1.1.0"
     simple-icons "^5.10.0"
 
-"@rockband/vue@^0.8.0":
-  version "0.8.0"
-  resolved "https://registry.yarnpkg.com/@rockband/vue/-/vue-0.8.0.tgz#39a5542fd09f2c4f6d050488cb1031a3d9f29e93"
-  integrity sha512-k4I1Z6cZYAKUBDlOjR/DrWnWvNzVNUJ+OvVpZ1im9YMyrK43rGRPL0ClUOjLpikqfbtpf5M3VPgUYJzAstfFtA==
+"@rockband/vue@^0.9.2":
+  version "0.9.2"
+  resolved "https://registry.yarnpkg.com/@rockband/vue/-/vue-0.9.2.tgz#cc23f921f4c7d3f683ce2b9e18e48aa4c6c5faf8"
+  integrity sha512-6CfYcSsv+CQziW9w1xytZxCTF2C2a5m+cguxjslV/d4esEXbfL9rDrOw9M+Jd1XLK52jQvWx3ycLNCAwn47JyA==
   dependencies:
     "@fortawesome/fontawesome-svg-core" "^1.2.36"
     "@fortawesome/free-solid-svg-icons" "^5.15.4"
     "@fortawesome/vue-fontawesome" "^2.0.2"
     "@tailwindcss/forms" "^0.3.3"
     "@tailwindcss/typography" "^0.4.1"
+    "@vue-a11y/dark-mode" "^1.1.1"
     autoprefixer "^9"
     core-js "^3.17.1"
     lodash "^4.17.21"
@@ -2216,6 +2208,11 @@
   integrity sha512-CHiCKIihl1pychwR2RNX5mAYmJDACgFVCMT5OArMaO3erzwXVcBqPcusr+Vl8yeeXukxZqtF8mZioqX+mpjjdw==
   dependencies:
     "@types/node" "*"
+
+"@vue-a11y/dark-mode@^1.1.1":
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/@vue-a11y/dark-mode/-/dark-mode-1.1.1.tgz#f0899553a20f0ef743d2765e0c5fb31da14234b5"
+  integrity sha512-rgzawzvctw/p+ddK/Zmob37MArHatPC5rrINULn/OHLs7oAtMBFFIx0k0pIbGaabJE6sftbr41fyH+zsepDVbQ==
 
 "@vue/babel-helper-vue-jsx-merge-props@^1.2.1":
   version "1.2.1"
