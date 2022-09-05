@@ -1166,24 +1166,24 @@
   resolved "https://registry.yarnpkg.com/@fortawesome/vue-fontawesome/-/vue-fontawesome-2.0.6.tgz#87e691ed87f28f4667238573a29743f543a087f6"
   integrity sha512-V3vT3flY15AKbUS31aZOP12awQI3aAzkr2B1KnqcHLmwrmy51DW3pwyBczKdypV8QxBZ8U68Hl2XxK2nudTxpg==
 
-"@fountainjs/nuxt@^1.8.2":
-  version "1.8.3"
-  resolved "https://registry.yarnpkg.com/@fountainjs/nuxt/-/nuxt-1.8.3.tgz#6091a34d30f88c5d04fb250d9b73a7c4d44b1e27"
-  integrity sha512-bXv28sOiB+ysEYZiZqrmtF+YaV89AWEoTMiG3fumjpRhhyz7v/UotGAomDnz1AwtTw4D5RCgeGF0ZDF7ADyWhA==
+"@fountainjs/nuxt@^1.9.1":
+  version "1.9.1"
+  resolved "https://registry.yarnpkg.com/@fountainjs/nuxt/-/nuxt-1.9.1.tgz#572e70a52efefa8ded86cc1100a8dcf897b1ce7f"
+  integrity sha512-qKWFoQLfcj714wM8+weWAYwZ+tlNDyAP+0I+bSscM0GX1UZiC25tgPx0q/M1InRuS832DRj/Ia6BU1crYM4VVQ==
   dependencies:
-    "@fountainjs/vue" "^1.8.3"
+    "@fountainjs/vue" "^1.9.1"
 
-"@fountainjs/parser@^1.8.3":
-  version "1.8.3"
-  resolved "https://registry.yarnpkg.com/@fountainjs/parser/-/parser-1.8.3.tgz#0b896e77b0b3a7c502f27ab853a5d7e9f4c69571"
-  integrity sha512-eFVG9CPZKcj9/z5TugP2fOfYa6lOPo9ZKs+l5kadAO6CTi6fGy8T6UGDKS6oC68bYWm3+jWuNjTCv4TFxaHMsA==
+"@fountainjs/parser@^1.9.1":
+  version "1.9.1"
+  resolved "https://registry.yarnpkg.com/@fountainjs/parser/-/parser-1.9.1.tgz#7e8859a01328a237d3d9ace06745c13cdeaba96f"
+  integrity sha512-VTRRf9iKNyJVVgsrRh7VkwjL9mSSGGIEKZ7DbkciQSgvo8jaFgx1pSSxc+pl1J07hxmaNehaSPCA3X5+qHU0pw==
 
-"@fountainjs/vue@^1.8.3":
-  version "1.8.3"
-  resolved "https://registry.yarnpkg.com/@fountainjs/vue/-/vue-1.8.3.tgz#b5321d5228481da999e4ffd1833ef76b83b91128"
-  integrity sha512-+hreIzhnZAqt8SVzC03FLY2YIo+Cy0pCu+TQyo4bHEu6cafKFTHkV27+hKDw6bjc/zAoZz7SNy2jmJgHXqjaKA==
+"@fountainjs/vue@^1.9.1":
+  version "1.9.1"
+  resolved "https://registry.yarnpkg.com/@fountainjs/vue/-/vue-1.9.1.tgz#84736e536c05126fbcb16cfdf7cec2f52e3695b5"
+  integrity sha512-vlC1bloIvSgxUlkX6Ws05idI8NuTsvR9o63RwPWSPO44MF5B30SUSqOk3Zz01ZaEd9FEBChHthd4FPLK0vuizA==
   dependencies:
-    "@fountainjs/parser" "^1.8.3"
+    "@fountainjs/parser" "^1.9.1"
 
 "@gar/promisify@^1.0.1":
   version "1.1.2"
