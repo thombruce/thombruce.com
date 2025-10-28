@@ -7,5 +7,5 @@ export default defineNuxtConfig({
     static: true,
   },
 
-  modules: ['@nuxtjs/tailwindcss'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxtjs/color-mode'],
 })
