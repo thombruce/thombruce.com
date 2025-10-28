@@ -17,7 +17,8 @@ useSeoMeta({
 </script>
 
 <template lang="pug">
-div
+div(class="prose dark:prose-invert")
   ContentRenderer(v-if="page" :value="page")/
-  div(v-else) Page not found
+  div(v-else)
+    h1 Page Not Found
 </template>
