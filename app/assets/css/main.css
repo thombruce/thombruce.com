@@ -4,11 +4,23 @@
 
 @custom-variant dark (&:where(.dark-mode, .dark-mode *));
 
+@theme {
+  --font-pixel: "Jersey 10", mono;
+  --font-code: "Fira Code", mono;
+}
+
 body {
   @apply
     min-h-screen
     bg-zinc-50
     text-zinc-950
     dark:bg-zinc-950
-    dark:text-zinc-50;
+    dark:text-zinc-50
+    font-code;
+}
+
+.prose {
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-pixel;
+  }
 }
