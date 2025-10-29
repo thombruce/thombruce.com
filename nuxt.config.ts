@@ -20,4 +20,13 @@ export default defineNuxtConfig({
   css: [
     './assets/css/main.css',
   ],
+
+  routeRules: {
+    '/discord': { redirect: 'https://discord.gg/SAUagUgTfa' },
+    '/github': { redirect: 'https://github.com/thombruce' },
+    '/bluesky': { redirect: 'https://bsky.app/profile/thombruce.com' },
+    '/mastodon': { redirect: 'https://mas.to/@thombruce' },
+    '/twitch': { redirect: 'https://twitch.tv/thombruce' },
+    '/youtube': { redirect: 'https://youtube.com/@thombruce' },
+  },
 })
