@@ -13,7 +13,7 @@ const isDark = computed({
 
 <template lang="pug">
 ClientOnly(v-if="!colorMode?.forced")
-  div
+  div(class="space-x-2")
     input(
       v-model="isDark"
       id="color-mode"
