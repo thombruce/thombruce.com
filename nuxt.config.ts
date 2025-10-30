@@ -30,6 +30,7 @@ export default defineNuxtConfig({
     '/mastodon': { redirect: 'https://mas.to/@thombruce' },
     '/twitch': { redirect: 'https://twitch.tv/thombruce' },
     '/youtube': { redirect: 'https://youtube.com/@thombruce' },
+    '/matrix': { redirect: 'https://matrix.to/#/@thombruce:matrix.org' },
   },
 
   content: {
