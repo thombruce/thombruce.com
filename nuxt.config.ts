@@ -19,6 +19,7 @@ export default defineNuxtConfig({
 
   css: [
     './assets/css/main.css',
+    '@thombruce/fountainjs/src/fountain.css',
   ],
 
   routeRules: {
@@ -29,5 +30,13 @@ export default defineNuxtConfig({
     '/mastodon': { redirect: 'https://mas.to/@thombruce' },
     '/twitch': { redirect: 'https://twitch.tv/thombruce' },
     '/youtube': { redirect: 'https://youtube.com/@thombruce' },
+  },
+
+  content: {
+    build: {
+      transformers: [ // See: https://content.nuxt.com/docs/advanced/transformers
+        '~~/transformers/fountain',
+      ],
+    },
   },
 })

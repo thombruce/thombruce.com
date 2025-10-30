@@ -15,6 +15,7 @@
     "@nuxtjs/color-mode": "^3.5.2",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.16",
+    "@thombruce/fountainjs": "^2.2.1",
     "better-sqlite3": "^12.4.1",
     "nuxt": "^4.2.0",
     "pug": "^3.0.3",
