@@ -18,6 +18,8 @@ useSeoMeta({
 // definePageMeta({
 //   colorMode: 'dark',
 // })
+
+defineOgImageComponent('OgColor')
 </script>
 
 <template lang="pug">

@@ -15,7 +15,13 @@ export default defineNuxtConfig({
     ]
   },
 
-  modules: ['@nuxtjs/color-mode', '@nuxt/content', '@nuxt/fonts'],
+  site: {
+    name: 'Thom Bruce',
+    description: 'Professional software developer',
+    url: 'https://www.thombruce.com',
+  },
+
+  modules: ['@nuxtjs/color-mode', '@nuxt/content', '@nuxt/fonts', 'nuxt-og-image'],
 
   css: [
     './assets/css/main.css',
