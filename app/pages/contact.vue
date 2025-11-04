@@ -36,25 +36,28 @@ async function submit() {
 </script>
 
 <template lang="pug">
-form(@submit.prevent="submit" class="max-w-prose space-y-4")
-  div
-    label Name
-    input(v-model="state.name" class="block w-full border p-1")/
+NuxtLayout
+  h1(class="text-4xl font-bold font-pixel") Contact 
 
-  div
-    label Email
-    input(v-model="state.email" class="block w-full border p-1")/
-
-  div
-    label Subject
-    select(v-model="state.subject" class="block w-full border p-1")
-      option(v-for="subject in subjects") {{ subject }}
-
-  div
-    label Message
-    textarea(v-model="state.message" class="block w-full border p-1")/
-
-  div(class="flex flex-row-reverse justify-between")
-    button(type="submit" class="border rounded-lg p-2") Submit
-    button(@click="clear" class="border rounded-lg border-red-500 p-1 text-sm text-red-500") Clear
+  form(@submit.prevent="submit" class="space-y-4")
+    div
+      label Name
+      input(v-model="state.name" class="block w-full border p-1")/
+  
+    div
+      label Email
+      input(v-model="state.email" class="block w-full border p-1")/
+  
+    div
+      label Subject
+      select(v-model="state.subject" class="block w-full border p-1")
+        option(v-for="subject in subjects") {{ subject }}
+  
+    div
+      label Message
+      textarea(v-model="state.message" class="block w-full border p-1")/
+  
+    div(class="flex flex-row-reverse justify-between")
+      button(type="submit" class="border rounded-lg p-2") Submit
+      button(@click="clear" class="border rounded-lg border-red-500 p-1 text-sm text-red-500") Clear
 </template>

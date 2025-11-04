@@ -2,7 +2,7 @@
 div(class="mx-4 my-2")
   NuxtRouteAnnouncer/
 
-  header(class="mb-4 space-y-2")
+  header(class="max-w-prose mb-4 space-y-2")
     span(class="block text-4xl font-pixel") Thom Bruce
 
     nav(class="space-x-2")
@@ -13,5 +13,6 @@ div(class="mx-4 my-2")
     div
       ColorMode/
 
-  NuxtPage/
+  main(class="max-w-prose")
+    NuxtPage/
 </template>
