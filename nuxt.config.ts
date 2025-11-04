@@ -15,6 +15,11 @@ export default defineNuxtConfig({
     ]
   },
 
+  runtimeConfig: {
+    // NUXT_RESEND_API_KEY=<key>
+    resendApiKey: '',
+  },
+
   site: {
     name: 'Thom Bruce',
     description: 'Professional software developer',

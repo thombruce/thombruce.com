@@ -21,6 +21,7 @@
     "nuxt": "^4.2.0",
     "nuxt-og-image": "^5.1.12",
     "pug": "^3.0.3",
+    "resend": "^6.4.0",
     "tailwindcss": "^4.1.16",
     "unstorage": "^1.17.2",
     "vue": "^3.5.22",
