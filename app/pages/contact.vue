@@ -58,6 +58,6 @@ NuxtLayout
       textarea(v-model="state.message" class="block w-full border p-1")/
   
     div(class="flex flex-row-reverse justify-between")
-      button(type="submit" class="border rounded-lg p-2") Submit
-      button(@click="clear" class="border rounded-lg border-red-500 p-1 text-sm text-red-500") Clear
+      button(type="submit" class="border rounded-lg p-2 cursor-pointer") Submit
+      button(@click="clear" class="border rounded-lg border-red-500 p-1 text-sm text-red-500 cursor-pointer") Clear
 </template>
