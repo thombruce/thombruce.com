@@ -41,21 +41,21 @@ NuxtLayout
 
   form(@submit.prevent="submit" class="space-y-4")
     div
-      label Name
-      input(v-model="state.name" class="block w-full border p-1")/
+      label(for="name") Name
+      input(v-model="state.name" id="name" class="block w-full border p-1")/
   
     div
-      label Email
-      input(v-model="state.email" class="block w-full border p-1")/
+      label(for="email") Email
+      input(v-model="state.email" id="email" class="block w-full border p-1")/
   
     div
-      label Subject
-      select(v-model="state.subject" class="block w-full border p-1")
+      label(for="subject") Subject
+      select(v-model="state.subject" id="subject" class="block w-full border p-1")
         option(v-for="subject in subjects") {{ subject }}
   
     div
-      label Message
-      textarea(v-model="state.message" class="block w-full border p-1")/
+      label(for="message") Message
+      textarea(v-model="state.message" id="message" class="block w-full border p-1")/
   
     div(class="flex flex-row-reverse justify-between")
       button(type="submit" class="border rounded-lg p-2 cursor-pointer") Submit
