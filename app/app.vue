@@ -7,6 +7,7 @@ div(class="mx-4 my-2")
 
     nav(class="space-x-2")
       NuxtLink(to="/") Home
+      NuxtLink(to="/blog") Blog
       NuxtLink(to="/about") About
       NuxtLink(to="/contact") Contact
 
