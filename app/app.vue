@@ -1,8 +1,8 @@
 <template lang="pug">
-div(class="mx-4 my-2")
+div(class="w-[95vw] max-w-2xl mx-auto my-2")
   NuxtRouteAnnouncer/
 
-  header(class="max-w-prose mb-4 space-y-2")
+  header(class="mb-4 space-y-2")
     span(class="block text-4xl font-pixel") Thom Bruce
 
     nav(class="space-x-2")
@@ -14,6 +14,6 @@ div(class="mx-4 my-2")
     div
       ColorMode/
 
-  main(class="max-w-prose")
+  main
     NuxtPage/
 </template>

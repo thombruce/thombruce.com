@@ -24,7 +24,7 @@ defineOgImageComponent('OgColor')
 
 <template lang="pug">
 NuxtLayout(:name="layout" :page="page")
-  div(class="prose dark:prose-invert")
+  div(class="prose dark:prose-invert max-w-none")
     ContentRenderer(v-if="page" :value="page")/
     div(v-else)
       h1 Page Not Found
