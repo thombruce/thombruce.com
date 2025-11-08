@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+@plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:where(.dark-mode, .dark-mode *));
@@ -9,18 +10,57 @@
   --font-code: "Fira Code", mono;
 }
 
-body {
-  @apply
-    min-h-screen
-    bg-zinc-50
-    text-zinc-950
-    dark:bg-zinc-950
-    dark:text-zinc-50
-    font-code;
+@theme inline {
+  --color-light: var(--color-zinc-50);
+  --color-dark: var(--color-zinc-950);
 }
 
-.prose {
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-pixel;
+@layer components {
+  body {
+    @apply
+      min-h-screen
+      bg-light
+      text-dark
+      dark:bg-dark
+      dark:text-light
+      font-code;
+  }
+
+  input, select, textarea, button {
+    @apply
+      bg-inherit
+      border-inherit
+      outline-inherit /* outline-inherit provides default focus behaviour across all checked browser engines */
+      ring-inherit
+      text-inherit
+      caret-inherit;
+
+    /* Blink (Chromium) allows for option to be styled but does not support inherit */
+    > option {
+      @apply bg-light dark:bg-dark;
+    }
+
+    /* Blink (Chromium) Alternative Solution */
+    /*
+      Preserved for a hint towards targeting specific browsers
+      NOTE: I am not confident that targeting -webkit-appearance is the correct solution; check alternatives
+    */
+    /*
+    @supports (-webkit-appearance: none) {
+      option {
+        @apply bg-light dark:bg-dark;
+      }
+    }
+    */
+ 
+    @variant focus {
+      /* @apply outline-blue-500; */
+    }
+  }
+
+  .prose {
+    h1, h2, h3, h4, h5, h6 {
+      @apply font-pixel;
+    }
   }
 }
