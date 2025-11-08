@@ -30,8 +30,8 @@
     @apply
       bg-inherit
       border-inherit
-      outline-inherit /* outline-inherit provides default focus behaviour across all checked browser engines */
-      ring-inherit
+      outline-none /* outline behaves inconsistently across different browser engines */
+      ring-inherit /* use ring instead, applied in the @variant focus definition below */
       text-inherit
       caret-inherit;
 
@@ -54,7 +54,17 @@
     */
  
     @variant focus {
-      /* @apply outline-blue-500; */
+      &:not([type="checkbox"]) {
+        @apply ring-2;
+      }
+      &[type="checkbox"] {
+        /* Bizarrely, if and ONLY IF any ring value is set (including ring-0),
+         * the checkbox input appears to have its own ring on focus anyway,
+         * which our value only adds to. Hence... we must set it to zero,
+         * but it does appear to show in all browser engines with this setting. */
+        /* TODO: Investigate whether the same is true of radio inputs */
+        @apply ring-0;
+      }
     }
   }
 
