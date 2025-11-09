@@ -12,7 +12,7 @@ export default defineContentConfig({
         ],
       },
       schema: z.object({
-        layout: z.enum(['default', 'fountain']).optional(),
+        layout: z.enum(['default', 'list', 'fountain']).optional(),
         date: z.date(),
       })
     })
