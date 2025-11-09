@@ -1,3 +1,4 @@
 <template lang="pug">
-slot/
+article(class="prose dark:prose-invert max-w-none")
+  slot/
 </template>
