@@ -3,7 +3,7 @@
 @plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:where(.dark-mode, .dark-mode *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-pixel: "Jersey 10", mono;
@@ -62,6 +62,16 @@
   .prose {
     h1, h2, h3, h4, h5, h6 {
       @apply font-pixel;
+    }
+  }
+}
+
+@layer utilities {
+  .prose {
+    :where(pre):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+      /* Catppuccin Latte Base for light mode and Catppuccin Mocha Crust for dark */
+      /* NOTE: Syntax highlighting is configured in ../../../nuxt.config.ts */
+      @apply bg-[#eff1f5] dark:bg-[#11111b];
     }
   }
 }

@@ -44,8 +44,26 @@ export default defineNuxtConfig({
     '/matrix': { redirect: 'https://matrix.to/#/@thombruce:matrix.org' },
   },
 
+  colorMode: {
+    classSuffix: '',
+  },
+
   content: {
     build: {
+      markdown: {
+        highlight: {
+          theme: {
+            default: 'catppuccin-latte',
+            dark: 'catppuccin-mocha',
+          },
+          langs: [
+            // Defaults
+            'json', 'js', 'ts', 'html', 'css', 'vue', 'shell', 'mdc', 'md', 'yaml',
+            // Custom
+            'postcss'
+          ],
+        }
+      },
       transformers: [ // See: https://content.nuxt.com/docs/advanced/transformers
         '~~/transformers/markdown',
         '~~/transformers/fountain',
