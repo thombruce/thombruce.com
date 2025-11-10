@@ -1,3 +1,27 @@
+# ThomBruce.com
+
+## Writing Content
+
+Both of the below should be equivalent:
+
+```md
+# Hello, World!
+
+Lorem ipsum dolor sit amet.
+```
+
+```md
+---
+title: Hello, World!
+---
+
+Lorem ipsum dolor sit amet.
+```
+
+The theme sets `display: none;` on the first child of the document if it is an `h1` element.
+The title is otherwise rendered outside of the `<ContentRenderer>` in a separate header.
+
+<!--
 # Nuxt Minimal Starter
 
 Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
@@ -73,3 +97,4 @@ bun run preview
 ```
 
 Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+-->
