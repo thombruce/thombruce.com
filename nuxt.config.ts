@@ -47,6 +47,7 @@ export default defineNuxtConfig({
   content: {
     build: {
       transformers: [ // See: https://content.nuxt.com/docs/advanced/transformers
+        '~~/transformers/markdown',
         '~~/transformers/fountain',
       ],
     },

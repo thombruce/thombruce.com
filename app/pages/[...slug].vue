@@ -24,6 +24,7 @@ defineOgImageComponent('OgColor')
 
 <template lang="pug">
 NuxtLayout(:name="layout" :page="page")
+  NuxtTime(v-if="page?.date" :datetime="page.date" class="text-zinc-600 dark:text-zinc-400")
   ContentRenderer(v-if="page" :value="page")/
   div(v-else)
     h1 Page Not Found
