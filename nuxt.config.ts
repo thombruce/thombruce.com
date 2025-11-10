@@ -53,6 +53,7 @@ export default defineNuxtConfig({
       markdown: {
         highlight: {
           theme: {
+            // NOTE: The background is configured separately in ./app/assets/css/main.css
             default: 'catppuccin-latte',
             dark: 'catppuccin-mocha',
           },
