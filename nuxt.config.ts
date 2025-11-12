@@ -53,11 +53,15 @@ export default defineNuxtConfig({
       markdown: {
         highlight: {
           theme: {
+            // See list of themes: https://github.com/shikijs/textmate-grammars-themes/tree/main/packages/tm-themes
             // NOTE: The background is configured separately in ./app/assets/css/main.css
             default: 'catppuccin-latte',
             dark: 'catppuccin-mocha',
+            // TODO: Add additional themes. Make themeable.
+            // nord: 'nord',
           },
           langs: [
+            // See list of grammars: https://github.com/shikijs/textmate-grammars-themes/tree/main/packages/tm-grammars
             // Defaults
             'json', 'js', 'ts', 'html', 'css', 'vue', 'shell', 'mdc', 'md', 'yaml',
             // Custom

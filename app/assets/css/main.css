@@ -4,6 +4,9 @@
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* @custom-variant catppuccin (&:where(.catppuccin, .catppuccin *));
+ * NOTE: Should probably be separated into latte, mocha, etc. */
+/* @custom-variant nord (&:where(.nord, .nord *)); */
 
 @theme {
   --font-pixel: "Jersey 10", mono;
@@ -13,6 +16,11 @@
 @theme inline {
   --color-light: var(--color-zinc-50);
   --color-dark: var(--color-zinc-950);
+
+  --color-catppuccin-latte-base: #eff1f5;
+  --color-catppuccin-mocha-crust: #11111b;
+
+  /* --color-nord-polar-night-darkest: #2e3440; */
 }
 
 @layer components {
@@ -71,7 +79,7 @@
     :where(pre):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
       /* Catppuccin Latte Base for light mode and Catppuccin Mocha Crust for dark */
       /* NOTE: Syntax highlighting is configured in ../../../nuxt.config.ts */
-      @apply bg-[#eff1f5] dark:bg-[#11111b];
+      @apply bg-catppuccin-latte-base dark:bg-catppuccin-mocha-crust;
     }
   }
 }
