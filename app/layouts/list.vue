@@ -4,8 +4,9 @@ const route = useRoute()
 const { data: pages } = await useAsyncData(
   `${route.path}-list`,
   () => queryCollection('content')
-    .where('path', 'LIKE', `${route.path}/%`)
+    .where('path', 'LIKE', `${route.path}%`)
     .where('path', 'NOT LIKE', `${route.path}/%/%`)
+    .where('path', 'NOT LIKE', `${route.path}`)
     .all()
 )
 </script>
