@@ -57,8 +57,14 @@ export default defineNuxtConfig({
             // NOTE: The background is configured separately in ./app/assets/css/main.css
             default: 'catppuccin-latte',
             dark: 'catppuccin-mocha',
-            // TODO: Add additional themes. Make themeable.
-            // nord: 'nord',
+
+            'catppuccin-latte-theme': 'catppuccin-latte',
+            'catppuccin-mocha-theme': 'catppuccin-mocha',
+            'dracula-theme': 'dracula',
+            'kanagawa-dragon-theme': 'kanagawa-dragon',
+            'kanagawa-lotus-theme': 'kanagawa-lotus',
+            'kanagawa-wave-theme': 'kanagawa-wave',
+            'nord-theme': 'nord',
           },
           langs: [
             // See list of grammars: https://github.com/shikijs/textmate-grammars-themes/tree/main/packages/tm-grammars
