@@ -1,5 +1,13 @@
 <script setup lang="ts">
+import type { ContentCollectionItem } from '@nuxt/content'
+
+// TODO: We can simplify. Pass page to thelayout instead of list.
+//       Page will already have the path, so route is then redundant.
+
 const route = useRoute()
+
+const { list }: { list?: { field?: keyof ContentCollectionItem, direction?: 'ASC' | 'DESC' } } = useAttrs()
+const { field = 'id', direction = 'ASC' }: { field?: keyof ContentCollectionItem, direction?: 'ASC' | 'DESC' } = list || {}
 
 const { data: pages } = await useAsyncData(
   `${route.path}-list`,
@@ -7,7 +15,7 @@ const { data: pages } = await useAsyncData(
     .where('path', 'LIKE', `${route.path}%`)
     .where('path', 'NOT LIKE', `${route.path}/%/%`)
     .where('path', 'NOT LIKE', `${route.path}`)
-    .order('date', 'DESC')
+    .order(field, direction)
     .all()
 )
 </script>
