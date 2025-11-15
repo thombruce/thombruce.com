@@ -17,4 +17,24 @@ div(class="w-[95vw] max-w-2xl mx-auto my-2")
 
   main
     NuxtPage/
+
+  footer(class="mt-4")
+    section
+      h2(class="text-2xl font-pixel") Links
+      nav
+        ul
+          li
+            NuxtLink(to="https://github.com/thombruce")
+              span(class="icon-[simple-icons--github] mr-2")/
+              | GitHub
+          li
+            NuxtLink(to="https://bsky.app/profile/thombruce.com")
+              span(class="icon-[simple-icons--bluesky] mr-2")/
+              | Bluesky
+          li
+            NuxtLink(to="https://linkedin.com/in/thombruce")
+              span(class="icon-[simple-icons--linkedin] mr-2")/
+              | LinkedIn
+    section(class="text-center")
+      small Copyright Thom Bruce 1989 - 2025
 </template>
