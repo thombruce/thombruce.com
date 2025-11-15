@@ -23,7 +23,7 @@ defineOgImageComponent('OgColor')
 </script>
 
 <template lang="pug">
-NuxtLayout(:name="layout" :list="page.meta.list")
+NuxtLayout(:name="layout" :list="page.meta?.list")
   header
     h1(class="mb-2") {{ page.title }}
     NuxtTime(v-if="page?.date" :datetime="page.date" class="text-zinc-600 dark:text-zinc-400")
