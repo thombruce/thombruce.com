@@ -93,4 +93,14 @@
         nord:bg-[#2e3440];
     }
   }
+
+  [href$=".pdf"] > span[data-icon]:first-child:empty {
+    /* TODO: Consider cases of not first-child (what if we want it appended, not prepended?)
+     *       I think it should be the case that any span with data-icon or special class is
+     *       given this sort of a treatment. Indeed, whether it is inside of a link tag or
+     *       not. Though in such case, we would not be able to automatically infer class,
+     *       just perhaps whether or not the span should be mr-2 or ml-2... perhaps? Maybe
+     *       not, as this then disrupts usages inside differently spaced elements. */
+    @apply icon-[fa7-solid--file-pdf] mr-2;
+  }
 }
