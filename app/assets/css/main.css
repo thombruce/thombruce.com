@@ -103,4 +103,20 @@
      *       not, as this then disrupts usages inside differently spaced elements. */
     @apply icon-[fa7-solid--file-pdf] mr-2;
   }
+
+  .content-renderer h2 a[href^="#"] {
+    @apply
+      hover:text-pink-500
+      
+      before:content-["#"]
+      
+      before:inline-block
+      before:mr-[.2em]
+      
+      before:md:absolute
+      before:md:-ml-[.8em]
+      
+      before:text-zinc-300
+      dark:before:text-zinc-700;
+  }
 }
