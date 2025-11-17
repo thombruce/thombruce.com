@@ -21,7 +21,7 @@ Lorem ipsum dolor sit amet.
 The theme sets `display: none;` on the first child of the document if it is an `h1` element.
 The title is otherwise rendered outside of the `<ContentRenderer>` in a separate header.
 
-> **Caveats**
+> [!WARNING]
 >
 > This does mean that even if you omit a title in the body of your Markdown document it is
 > impossible not to have a title shown anyway at the moment, as Nuxt will automatically
