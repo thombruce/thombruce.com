@@ -35,16 +35,30 @@
       font-code;
   }
 
+  a, input, select, textarea, button {
+    @apply
+      outline-none /* outline behaves inconsistently across different browser engines */
+      ring-inherit /* use ring instead, applied in the @variant focus definition below */
+      ring-offset-0; /* checkbox and radio are given a #fff ring-offset by default; we remove that here */
+ 
+    @variant focus {
+      @apply ring-2;
+    }
+  }
+
   input, select, textarea, button {
     @apply
       bg-inherit
       border-inherit
-      outline-none /* outline behaves inconsistently across different browser engines */
-      ring-inherit /* use ring instead, applied in the @variant focus definition below */
-      ring-offset-0 /* checkbox and radio are given a #fff ring-offset by default; we remove that here */
-      text-inherit
-      caret-inherit;
+      text-inherit;
+  }
 
+  input, textarea {
+    @apply
+      caret-inherit;
+  }
+
+  select {
     /* Blink (Chromium) allows for option to be styled but does not support inherit */
     > option {
       @apply bg-light dark:bg-dark;
@@ -62,10 +76,6 @@
       }
     }
     */
- 
-    @variant focus {
-      @apply ring-2;
-    }
   }
 
   .prose {
