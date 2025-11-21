@@ -21,6 +21,7 @@
     "@tailwindcss/vite": "^4.1.17",
     "@thombruce/fountainjs": "^2.2.1",
     "@unhead/vue": "^2.0.19",
+    "@vueuse/core": "^14.0.0",
     "better-sqlite3": "^12.4.1",
     "mjml": "^4.16.1",
     "nuxt": "^4.2.1",

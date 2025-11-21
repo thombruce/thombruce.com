@@ -17,6 +17,15 @@ const route = useRoute()
 watch(() => route.fullPath, (_newPath, _oldPath) => {
   popover.value.hidePopover()
 })
+
+defineShortcuts({
+  ctrl_k: {
+    handler: () => {
+      popover.value.togglePopover()
+      emit('opened')
+    }
+  }
+})
 </script>
 
 <template lang="pug">
