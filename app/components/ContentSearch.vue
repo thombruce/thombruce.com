@@ -4,6 +4,8 @@
 
 import Fuse from 'fuse.js'
 
+const input = ref(null)
+
 const query = ref('')
 const { data } = await useAsyncData('content-search', () => queryCollectionSearchSections('content'))
 
@@ -20,10 +22,10 @@ const result = computed(() =>
 </script>
 
 <template lang="pug">
-ModalView(buttonText="Search")
+ModalView(buttonText="Search" @opened="input.focus()")
   form
     label(for="query" class="text-3xl font-bold font-pixel") Search
-    input(id="query" v-model="query" class="block w-full border p-1")
+    input(id="query" ref="input" v-model="query" class="block w-full border p-1")
   div(v-if="result?.length" class="not-prose py-4")
     ol(class="max-h-[250px] overflow-scroll space-y-4")
       li(v-for="page in result" class="max-w-md")

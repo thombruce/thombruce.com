@@ -5,6 +5,13 @@ const { buttonText = "Open" } = defineProps<{
   buttonText?: String
 }>()
 
+const emit = defineEmits(['opened'])
+
+const openModal = () => {
+  popover.value.showPopover()
+  emit('opened')
+}
+
 // Close the popover on navigation (if a link is clicked)
 const route = useRoute()
 watch(() => route.fullPath, (_newPath, _oldPath) => {
@@ -14,7 +21,7 @@ watch(() => route.fullPath, (_newPath, _oldPath) => {
 
 <template lang="pug">
 div
-  button(@click="popover.showPopover()" class="cursor-pointer") {{ buttonText }}
+  button(@click="openModal()" class="cursor-pointer") {{ buttonText }}
 
   div(
     popover
