@@ -7,7 +7,7 @@ import Fuse from 'fuse.js'
 const input = ref(null)
 
 const query = ref('')
-const { data } = await useAsyncData('content-search', () => queryCollectionSearchSections('content'))
+const { data } = await useAsyncData('content-search', () => queryCollectionSearchSections('content', { ignoredTags: ['code'] }))
 
 const fuse = new Fuse(data.value, {
   keys: ['title', 'content']
