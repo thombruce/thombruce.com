@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const uid = useId()
+const popover: Ref = ref(null)
 
 const { buttonText = "Open" } = defineProps<{
   buttonText?: String
@@ -7,7 +7,6 @@ const { buttonText = "Open" } = defineProps<{
 
 // Close the popover on navigation (if a link is clicked)
 const route = useRoute()
-const popover: Ref = ref(null)
 watch(() => route.fullPath, (_newPath, _oldPath) => {
   popover.value.hidePopover()
 })
@@ -15,11 +14,10 @@ watch(() => route.fullPath, (_newPath, _oldPath) => {
 
 <template lang="pug">
 div
-  button(:popovertarget="`modal-${uid}`" class="cursor-pointer") {{ buttonText }}
+  button(@click="popover.showPopover()" class="cursor-pointer") {{ buttonText }}
 
   div(
     popover
-    :id="`modal-${uid}`"
     ref="popover"
     class="max-w-full md:max-w-1/2 lg:max-w-1/3 xl:max-w-1/4 m-auto px-4 py-2 bg-light dark:bg-dark text-dark dark:text-light border"
   )
