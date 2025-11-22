@@ -71,7 +71,8 @@ export default defineNuxtConfig({
             // Defaults
             'json', 'js', 'ts', 'html', 'css', 'vue', 'shell', 'mdc', 'md', 'yaml',
             // Custom
-            'postcss'
+            'postcss',
+            'diff',
           ],
         }
       },
