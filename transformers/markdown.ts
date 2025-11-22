@@ -30,7 +30,7 @@ export default defineTransformer({
     // TODO: Ensure that inline tags are merged with metadata tags
     // TODO: Extend support to @Context and +Project tags
     visit(body, (node) => ['p'].includes(node[0]), (node) => {
-      tags.push(...(textContent(node).match(/(?:^|\s)#\w+/g) || []))
+      tags.push(...(textContent(node).match(/(?<=(?:^|\s)#)\w+/g) || []))
     })
 
     return {
