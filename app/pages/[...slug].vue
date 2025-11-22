@@ -27,6 +27,8 @@ NuxtLayout(:name="layout" :page="page" :list="page.meta?.list")
   header
     h1(class="mb-2") {{ page.title }}
     NuxtTime(v-if="page?.date" :datetime="page.date" class="text-zinc-600 dark:text-zinc-400")
+    ul(v-if="page?.tags?.length")
+      li(v-for="tag in page.tags") {{ tag }}
   ContentRenderer(v-if="page" :value="page" class="content-renderer")/
   div(v-else)
     h1 Page Not Found

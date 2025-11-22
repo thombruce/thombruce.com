@@ -14,6 +14,7 @@ export default defineContentConfig({
       schema: z.object({
         layout: z.enum(['default', 'list', 'fountain']).optional(),
         date: z.date(),
+        tags: z.array(z.string()).optional(),
       })
     })
   }
