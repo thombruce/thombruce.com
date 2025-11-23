@@ -28,6 +28,7 @@ article(class="prose dark:prose-invert max-w-none")
       li(v-for="page in pages")
         NuxtLink(:to="page.path" class="link-to-post")
           h2(class="text-3xl") {{ page.title }}
+          NuxtTime(v-if="page?.date" :datetime="page.date" class="text-zinc-600 dark:text-zinc-400")
           p {{ page.description }}
   div(v-else)
     h1 No Posts Found
