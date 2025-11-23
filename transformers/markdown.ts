@@ -10,8 +10,20 @@ import { visit, textContent } from 'minimark'
 export default defineTransformer({
   name: 'Markdown',
   extensions: ['.md'],
-  transform: (file: ContentFile) => {
-    const { id, body }: { id: string, body: any } = file
+  transform: (file: any) => {
+    const {
+      id,
+      body,
+      tags = [],
+      contexts = [],
+      projects = []
+    }: {
+      id: string,
+      body: any,
+      tags: string[],
+      contexts: string[],
+      projects: string[]
+    } = file
 
     // TODO: Check first whether or not the file already has a date
     //       (it could be provided in Markdown header).
@@ -22,15 +34,13 @@ export default defineTransformer({
     const seq_id = id.split('/').pop().split('.')[0]
     const date_from_seq_id = seq_id.length === 8 ? new Date(seq_id.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3")) : null
 
-    let tags: string[] = []
-
     // TODO: Add support for headings
     // TODO: Add support for blockquotes
     // TODO: Ensure that hashtags in inline code are not included
-    // TODO: Ensure that inline tags are merged with metadata tags
-    // TODO: Extend support to @Context and +Project tags
     visit(body, (node) => ['p'].includes(node[0]), (node) => {
       tags.push(...(textContent(node).match(/(?<=(?:^|\s)#)\w+/g) || []))
+      contexts.push(...(textContent(node).match(/(?<=(?:^|\s)@)\w+/g) || []))
+      projects.push(...(textContent(node).match(/(?<=(?:^|\s)\+)\w+/g) || []))
     })
 
     return {
@@ -38,6 +48,8 @@ export default defineTransformer({
 
       date: date_from_seq_id,
       tags,
+      contexts,
+      projects,
     }
   },
 })
