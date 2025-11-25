@@ -14,12 +14,14 @@ export default defineTransformer({
     const {
       id,
       body,
+      date,
       tags = [],
       contexts = [],
       projects = []
     }: {
       id: string,
       body: any,
+      date: Date,
       tags: string[],
       contexts: string[],
       projects: string[]
@@ -46,7 +48,7 @@ export default defineTransformer({
     return {
       ...file,
 
-      date: date_from_seq_id,
+      date: date || date_from_seq_id,
       tags,
       contexts,
       projects,
