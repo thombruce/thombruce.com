@@ -29,20 +29,20 @@ NuxtLayout(:name="layout" :page="page" :list="page.meta?.list")
 
     NuxtTime(v-if="page?.date" :datetime="page.date" class="text-zinc-600 dark:text-zinc-400")
 
-    template(v-if="page?.tags?.length")
+    div(v-if="page?.tags?.length" class="not-prose")
       h2 Tags
-      ul
-        li(v-for="tag in page.tags") {{ tag }}
+      ul(class="space-x-2")
+        li(v-for="tag in page.tags" class="inline-block bg-teal-400 dark:bg-teal-600 rounded px-2 font-bold before:content-['#']") {{ tag }}
 
-    template(v-if="page?.contexts?.length")
+    div(v-if="page?.contexts?.length" class="not-prose")
       h2 Mentions
-      ul
-        li(v-for="context in page.contexts") {{ context }}
+      ul(class="space-x-2")
+        li(v-for="context in page.contexts" class="inline-block bg-rose-400 dark:bg-rose-600 rounded px-2 font-bold before:content-['@']") {{ context }}
 
-    template(v-if="page?.projects?.length")
+    div(v-if="page?.projects?.length" class="not-prose")
       h2 Projects
-      ul
-        li(v-for="project in page.projects") {{ project }}
+      ul(class="space-x-2")
+        li(v-for="project in page.projects" class="inline-block bg-amber-400 dark:bg-amber-600 rounded px-2 font-bold before:content-['+']") {{ project }}
 
   ContentRenderer(v-if="page" :value="page" class="content-renderer")/
 
