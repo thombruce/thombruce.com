@@ -58,5 +58,5 @@ div(class="w-[95vw] max-w-2xl mx-auto my-2")
                 span(class="icon-[simple-icons--linkedin] mr-2")/
                 | LinkedIn
     section(class="text-center")
-      small Copyright Thom Bruce 1989 - 2025
+      small Copyright Thom Bruce 1989 - {{ new Date().getFullYear() }}
 </template>
