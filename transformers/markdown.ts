@@ -49,9 +49,9 @@ export default defineTransformer({
       ...file,
 
       date: date || date_from_seq_id,
-      tags,
-      contexts,
-      projects,
+      tags: [...new Set(tags)],
+      contexts: [...new Set(contexts)],
+      projects: [...new Set(projects)],
     }
   },
 })
