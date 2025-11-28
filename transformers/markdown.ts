@@ -41,8 +41,8 @@ export default defineTransformer({
     // TODO: Ensure that hashtags in inline code are not included
     visit(body, (node) => ['p'].includes(node[0]), (node) => {
       tags.push(...(textContent(node).match(/(?<=(?:^|\s)#)\w+/g) || []))
-      contexts.push(...(textContent(node).match(/(?<=(?:^|\s)@)\w+/g) || []))
-      projects.push(...(textContent(node).match(/(?<=(?:^|\s)\+)\w+/g) || []))
+      contexts.push(...(textContent(node).match(/(?<=(?:^|\s)(?:\+\w+)?@)\w+/g) || []))
+      projects.push(...(textContent(node).match(/(?<=(?:^|\s)\+)\w+(?:@\w+)?/g) || []))
     })
 
     return {
