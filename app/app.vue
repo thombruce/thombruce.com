@@ -10,7 +10,7 @@ div(class="w-[95vw] max-w-2xl mx-auto my-2")
       NuxtLink(to="/blog") Blog
       NuxtLink(to="/code") Code
       NuxtLink(to="/about") About
-      NuxtLink(to="/contact") Contact
+      // NuxtLink(to="/contact") Contact
       ContentSearch(class="inline-block")/
 
     div
