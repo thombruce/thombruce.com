@@ -37,7 +37,9 @@
 
 <template lang="pug">
 NuxtLayout
-  h1(class="text-4xl font-bold font-pixel") Contact 
+  h1(class="text-4xl font-bold font-pixel") Contact
+
+  p Shoot me an email at <a href="mailto:thom@thombruce.com">thom@thombruce.com</a>
 
   // form(@submit.prevent="submit" class="space-y-4")
   //   div
