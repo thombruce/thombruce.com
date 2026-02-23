@@ -22,7 +22,7 @@
     "@thombruce/fountainjs": "^2.2.1",
     "@unhead/vue": "^2.0.19",
     "@vueuse/core": "^14.0.0",
-    "better-sqlite3": "^12.4.6",
+    "better-sqlite3": "^12.5.0",
     "mjml": "^4.17.1",
     "nuxt": "^4.2.1",
     "nuxt-og-image": "^5.1.12",
