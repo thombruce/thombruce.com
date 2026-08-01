@@ -6,12 +6,13 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use russh::keys::{PrivateKey, ssh_key};
 use russh::server::ChannelOpenHandle;
 use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::{Channel, ChannelId};
 
-use crate::content;
+use crate::content::{self, Page};
 
 pub async fn serve(addr: String) -> std::io::Result<()> {
     // Ephemeral host key: regenerated each boot. Fine for a public read-only
@@ -71,7 +72,7 @@ impl Handler for Conn {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         session.channel_success(channel)?;
-        session.data(channel, screen(content::HOME))?;
+        session.data(channel, page(&content::HOME))?;
         Ok(())
     }
 
@@ -83,8 +84,8 @@ impl Handler for Conn {
     ) -> Result<(), Self::Error> {
         for &byte in data {
             match byte {
-                b'h' | b'H' => session.data(channel, screen(content::HOME))?,
-                b'a' | b'A' => session.data(channel, screen(content::ABOUT))?,
+                b'h' | b'H' => session.data(channel, page(&content::HOME))?,
+                b'a' | b'A' => session.data(channel, page(&content::ABOUT))?,
                 // q, Q, Ctrl-C, Ctrl-D
                 b'q' | b'Q' | 3 | 4 => {
                     session.data(channel, b"\r\nBye.\r\n".to_vec())?;
@@ -95,6 +96,30 @@ impl Handler for Conn {
         }
         Ok(())
     }
+}
+
+// Render a page's Markdown to plain terminal text and wrap it in a screen.
+fn page(page: &Page) -> Vec<u8> {
+    screen(&render_text(page.markdown))
+}
+
+// Markdown -> plain text. Drops syntax markers; blocks separated by blank
+// lines, list items prefixed with a bullet.
+// ponytail: ordered lists render as bullets too; number them if it matters.
+fn render_text(markdown: &str) -> String {
+    let mut out = String::new();
+    for event in Parser::new(markdown) {
+        match event {
+            Event::Text(t) | Event::Code(t) => out.push_str(&t),
+            Event::Start(Tag::Item) => out.push_str("- "),
+            Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Item | TagEnd::List(_)) => {
+                out.push('\n');
+            }
+            Event::End(TagEnd::Paragraph | TagEnd::Heading(_)) => out.push_str("\n\n"),
+            _ => {}
+        }
+    }
+    out.trim_end().to_owned()
 }
 
 // Clear screen, render body (PTYs need CRLF), append a nav footer.
@@ -108,7 +133,19 @@ fn screen(body: &str) -> Vec<u8> {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use super::screen;
+    use super::{render_text, screen};
+
+    #[test]
+    fn render_text_strips_syntax_and_bullets_lists() {
+        let out = render_text("# Title\n\nHello\n\n1. one\n2. two");
+        assert!(out.contains("Title"), "heading text kept");
+        assert!(!out.contains('#'), "heading marker dropped");
+        assert!(out.contains("Hello"));
+        assert!(
+            out.contains("- one") && out.contains("- two"),
+            "items bulleted"
+        );
+    }
 
     #[test]
     fn screen_clears_converts_newlines_and_appends_footer() -> Result<(), std::string::FromUtf8Error>

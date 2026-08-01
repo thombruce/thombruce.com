@@ -1,15 +1,18 @@
-//! Site content, decoupled from any frontend so the HTTP handlers — and a
-//! future SSH/TUI frontend — render the same source.
+//! Site content as data, decoupled from any frontend. Each page's body is
+//! Markdown embedded at compile time; the HTTP frontend renders it to HTML and
+//! the SSH frontend renders it to text, so the source lives in exactly one place.
 
-pub const HOME: &str = r"Thom Bruce
-Web and Software Developer
-Ruby / Rust / TypeScript
+pub struct Page {
+    pub title: &'static str,
+    pub markdown: &'static str,
+}
 
-Site Under Construction";
+pub const HOME: Page = Page {
+    title: "Home",
+    markdown: include_str!("../content/home.md"),
+};
 
-pub const ABOUT: &str = r"About
-i. Rubyist
-ii. Rustacean
-iii. TypeScripter
-
-Writing code for nearly 20 years.";
+pub const ABOUT: Page = Page {
+    title: "About",
+    markdown: include_str!("../content/about.md"),
+};

@@ -1,15 +1,26 @@
-use maud::{DOCTYPE, Markup, html};
+use maud::{DOCTYPE, Markup, PreEscaped, html};
+use pulldown_cmark::{Parser, html::push_html};
 
-// Shared page shell (doctype, head, nav chrome). Body passed by reference so
-// callers can hand in an `html!` temporary without a needless move.
-fn layout(title: &str, body: &Markup) -> Markup {
+use crate::content::{self, Page};
+
+// Markdown -> HTML string. ponytail: parsed per request; these docs are tiny
+// and traffic is low. Cache in a LazyLock if render cost ever shows up.
+fn render_html(markdown: &str) -> String {
+    let mut out = String::new();
+    push_html(&mut out, Parser::new(markdown));
+    out
+}
+
+// Shared page shell (doctype, head, nav chrome) wrapping the rendered body.
+fn layout(page: &Page) -> Markup {
+    let body = render_html(page.markdown);
     html! {
         (DOCTYPE)
         html lang="en" {
             head {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1";
-                title { (title) " · Thom Bruce" }
+                title { (page.title) " · Thom Bruce" }
             }
             body {
                 nav {
@@ -18,7 +29,7 @@ fn layout(title: &str, body: &Markup) -> Markup {
                     a href="/about" { "About" }
                 }
                 main {
-                    (body)
+                    (PreEscaped(body))
                 }
             }
         }
@@ -26,28 +37,9 @@ fn layout(title: &str, body: &Markup) -> Markup {
 }
 
 pub async fn home() -> Markup {
-    layout(
-        "Home",
-        &html! {
-            h1 { "Thom Bruce" }
-            p { "Web and Software Developer" }
-            p { "Ruby / Rust / TypeScript" }
-            p { em { "Site Under Construction" } }
-        },
-    )
+    layout(&content::HOME)
 }
 
 pub async fn about() -> Markup {
-    layout(
-        "About",
-        &html! {
-            h1 { "About" }
-            ol type="i" {
-                li { "Rubyist" }
-                li { "Rustacean" }
-                li { "TypeScripter" }
-            }
-            p { "Writing code for nearly 20 years." }
-        },
-    )
+    layout(&content::ABOUT)
 }

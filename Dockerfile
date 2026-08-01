@@ -4,6 +4,7 @@ FROM rust:1-slim-bookworm AS builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY content ./content
 RUN cargo build --release
 
 # ---- runtime ----
