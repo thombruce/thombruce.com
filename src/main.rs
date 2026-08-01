@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use axum::{
     Router,
     extract::Request,
-    http::header::HOST,
+    http::header::{self, HOST},
     middleware::{Next, from_fn},
     response::{IntoResponse, Redirect, Response},
     routing::get,
@@ -19,8 +19,20 @@ fn app() -> Router {
     Router::new()
         .route("/", get(pages::home))
         .route("/about", get(pages::about))
+        .route("/style.css", get(stylesheet))
         .fallback(errors::not_found)
         .layer(from_fn(www_redirect))
+}
+
+// Serve the drizzle-css stylesheet from an embedded constant (no static files).
+async fn stylesheet() -> impl IntoResponse {
+    (
+        [
+            (header::CONTENT_TYPE, "text/css; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+        ],
+        drizzle_css::CSS_MIN,
+    )
 }
 
 #[tokio::main]
@@ -134,6 +146,20 @@ mod tests {
         let res = app().oneshot(req).await?;
 
         assert_eq!(res.status(), StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stylesheet_served_as_css() -> TestResult {
+        let req = Request::builder().uri("/style.css").body(Body::empty())?;
+        let res = app().oneshot(req).await?;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let ct = res
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(ct, Some("text/css; charset=utf-8"));
         Ok(())
     }
 
