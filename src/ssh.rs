@@ -104,3 +104,19 @@ fn screen(body: &str) -> Vec<u8> {
     out.push_str("\r\n\r\n[h] home  [a] about  [q] quit\r\n");
     out.into_bytes()
 }
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
+mod tests {
+    use super::screen;
+
+    #[test]
+    fn screen_clears_converts_newlines_and_appends_footer() -> Result<(), std::string::FromUtf8Error> {
+        let out = String::from_utf8(screen("a\nb"))?;
+
+        assert!(out.starts_with("\x1b[2J\x1b[H"), "should clear the screen first");
+        assert!(out.contains("a\r\nb"), "newlines become CRLF for the PTY");
+        assert!(out.ends_with("[h] home  [a] about  [q] quit\r\n"), "footer appended");
+        Ok(())
+    }
+}

@@ -15,14 +15,17 @@ mod handlers;
 mod ssh;
 use handlers::{errors, pages};
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // build our application with a single route
-    let app = Router::new()
+fn app() -> Router {
+    Router::new()
         .route("/", get(pages::home))
         .route("/about", get(pages::about))
         .fallback(errors::not_found)
-        .layer(from_fn(www_redirect));
+        .layer(from_fn(www_redirect))
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let app = app();
 
     // Render (and most PaaS) inject the HTTP port via $PORT; fall back for local dev.
     // SSH binds a high port locally (privileged ports need root); a host maps :22 to it.
@@ -93,5 +96,53 @@ async fn shutdown_signal() {
     tokio::select! {
         () = ctrl_c => {},
         () = terminate => {},
+    }
+}
+
+// Tests are allowed to panic (asserts); the panic-restriction lints target the
+// long-running server, not the test harness.
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::StatusCode;
+    use tower::ServiceExt; // for `oneshot`
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    #[tokio::test]
+    async fn www_redirects_to_apex_preserving_path() -> TestResult {
+        let req = Request::builder()
+            .uri("/about")
+            .header(HOST, "www.thombruce.com")
+            .body(Body::empty())?;
+        let res = app().oneshot(req).await?;
+
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
+        let location = res.headers().get("location").and_then(|v| v.to_str().ok());
+        assert_eq!(location, Some("https://thombruce.com/about"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn apex_host_passes_through() -> TestResult {
+        let req = Request::builder()
+            .uri("/")
+            .header(HOST, "thombruce.com")
+            .body(Body::empty())?;
+        let res = app().oneshot(req).await?;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unknown_route_is_404() -> TestResult {
+        let req = Request::builder().uri("/nope").body(Body::empty())?;
+        let res = app().oneshot(req).await?;
+
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+        Ok(())
     }
 }
