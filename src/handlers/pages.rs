@@ -23,3 +23,7 @@ pub async fn home() -> Markup {
 pub async fn about() -> Markup {
     layout(&content::ABOUT)
 }
+
+pub async fn colophon() -> Markup {
+    layout(&content::COLOPHON)
+}

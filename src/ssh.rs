@@ -94,6 +94,7 @@ impl Handler for Conn {
             match byte {
                 b'h' | b'H' => session.data(channel, page(&content::HOME))?,
                 b'a' | b'A' => session.data(channel, page(&content::ABOUT))?,
+                b'c' | b'C' => session.data(channel, page(&content::COLOPHON))?,
                 // q, Q, Ctrl-C, Ctrl-D
                 b'q' | b'Q' | 3 | 4 => {
                     session.data(channel, b"\r\nBye.\r\n".to_vec())?;
@@ -134,7 +135,7 @@ fn render_text(markdown: &str) -> String {
 fn screen(body: &str) -> Vec<u8> {
     let mut out = String::from("\x1b[2J\x1b[H");
     out.push_str(&body.replace('\n', "\r\n"));
-    out.push_str("\r\n\r\n[h] home  [a] about  [q] quit\r\n");
+    out.push_str("\r\n\r\n[h] home  [a] about  [c] colophon  [q] quit\r\n");
     out.into_bytes()
 }
 
@@ -166,7 +167,7 @@ mod tests {
         );
         assert!(out.contains("a\r\nb"), "newlines become CRLF for the PTY");
         assert!(
-            out.ends_with("[h] home  [a] about  [q] quit\r\n"),
+            out.ends_with("[h] home  [a] about  [c] colophon  [q] quit\r\n"),
             "footer appended"
         );
         Ok(())

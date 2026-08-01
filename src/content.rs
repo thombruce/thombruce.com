@@ -16,3 +16,8 @@ pub const ABOUT: Page = Page {
     title: "About",
     markdown: include_str!("../content/about.md"),
 };
+
+pub const COLOPHON: Page = Page {
+    title: "Colophon",
+    markdown: include_str!("../content/colophon.md"),
+};

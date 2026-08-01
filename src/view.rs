@@ -17,6 +17,8 @@ pub fn shell(title: &str, body: &Markup) -> Markup {
                     a href="/" { "Home" }
                     " · "
                     a href="/about" { "About" }
+                    " · "
+                    a href="/colophon" { "Colophon" }
                 }
                 main {
                     (body)

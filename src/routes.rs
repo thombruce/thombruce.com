@@ -13,6 +13,7 @@ pub fn app() -> Router {
     Router::new()
         .route("/", get(pages::home))
         .route("/about", get(pages::about))
+        .route("/colophon", get(pages::colophon))
         .route("/style.css", get(assets::stylesheet))
         .fallback(errors::not_found)
         .layer(from_fn(www_redirect))
