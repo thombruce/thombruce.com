@@ -91,6 +91,11 @@ mod tests {
         let res = app().oneshot(req).await?;
 
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
+        let ct = res
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(ct, Some("text/html; charset=utf-8"));
         Ok(())
     }
 }

@@ -6,6 +6,7 @@ mod content;
 mod handlers;
 mod routes;
 mod ssh;
+mod view;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

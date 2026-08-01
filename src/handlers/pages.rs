@@ -1,7 +1,8 @@
-use maud::{DOCTYPE, Markup, PreEscaped, html};
+use maud::{Markup, PreEscaped};
 use pulldown_cmark::{Parser, html::push_html};
 
 use crate::content::{self, Page};
+use crate::view::shell;
 
 // Markdown -> HTML string. ponytail: parsed per request; these docs are tiny
 // and traffic is low. Cache in a LazyLock if render cost ever shows up.
@@ -11,30 +12,8 @@ fn render_html(markdown: &str) -> String {
     out
 }
 
-// Shared page shell (doctype, head, nav chrome) wrapping the rendered body.
 fn layout(page: &Page) -> Markup {
-    let body = render_html(page.markdown);
-    html! {
-        (DOCTYPE)
-        html lang="en" {
-            head {
-                meta charset="utf-8";
-                meta name="viewport" content="width=device-width, initial-scale=1";
-                link rel="stylesheet" href="/style.css";
-                title { (page.title) " · Thom Bruce" }
-            }
-            body {
-                nav {
-                    a href="/" { "Home" }
-                    " · "
-                    a href="/about" { "About" }
-                }
-                main {
-                    (PreEscaped(body))
-                }
-            }
-        }
-    }
+    shell(page.title, &PreEscaped(render_html(page.markdown)))
 }
 
 pub async fn home() -> Markup {

@@ -1,10 +1,18 @@
 use axum::http::StatusCode;
+use maud::{Markup, html};
 
-pub async fn not_found() -> (StatusCode, &'static str) {
+use crate::view::shell;
+
+pub async fn not_found() -> (StatusCode, Markup) {
     (
         StatusCode::NOT_FOUND,
-        r"404 Not Found
-
-This page does not exist.",
+        shell(
+            "Not Found",
+            &html! {
+                h1 { "404" }
+                p { "That page doesn’t exist." }
+                p { a href="/" { "Go home" } }
+            },
+        ),
     )
 }
