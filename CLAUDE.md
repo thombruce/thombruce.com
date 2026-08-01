@@ -20,16 +20,16 @@ Tests live in `#[cfg(test)]` modules beside the code (`routes.rs`, `ssh.rs`). Th
 
 ## Architecture
 
-Two frontends serve the same content from one binary.
+Two frontends serve the same content from one binary. Pages are **discovered**, not hand-wired: **adding a page is just dropping a Markdown file in `content/pages/`** (then rebuilding — the embed is compile-time). Routes, nav (both frontends), and SSH keys all derive from the files.
 
-- `src/content.rs` — page content as data, decoupled from any frontend. `Page { title, markdown }`; each page's body is a Markdown file in `content/` embedded at compile time via `include_str!`. Single source for both frontends.
-- `src/main.rs` — bootstrap only: spawns both listeners (axum HTTP in the foreground with graceful shutdown, the SSH server as a background task), reads `PORT`/`SSH_PORT` via `env_port`.
-- `src/routes.rs` — the route table (`app()`), the `www_redirect` middleware, and the router tests. This is the one place to see every route.
-- `src/handlers/` — HTTP handlers, registered in `handlers/mod.rs`. `pages.rs` renders a `Page`'s Markdown to HTML (pulldown-cmark) wrapped in the shared shell; `errors.rs` returns the HTML 404 fallback; `assets.rs` serves `/style.css` from drizzle-css's embedded `CSS_MIN` constant.
-- `src/view.rs` — `shell(title, body)`, the shared maud layout (doctype, head, stylesheet link, nav) wrapping each route's body. Route-specific bodies live in the handlers.
-- `src/ssh.rs` — SSH/TUI frontend (russh). Renders the same `Page` Markdown to plain terminal text over a PTY with single-key nav (h/a/q); loads its host key via `host_key()`. v1 is raw ANSI; ratatui is deferred (issue #2).
+- `src/content.rs` — content as data, decoupled from any frontend. Each file in `content/pages/` is embedded at compile time (`include_dir!`) and parsed by `load()` into a `Page { title, nav, order, path, body }`: a `---` frontmatter block (`title`, `nav`, `order`, `path`) plus a Markdown body. `load()` fails loudly on malformed frontmatter — it runs once at startup.
+- `src/main.rs` — bootstrap only: `content::load()`s the pages into an `Arc` shared by both frontends, spawns both listeners (axum HTTP foreground with graceful shutdown, SSH background), reads `PORT`/`SSH_PORT` via `env_port`.
+- `src/routes.rs` — `app(pages)` builds the router by registering one route per discovered page (pre-rendered at startup), plus `/style.css` and the 404 fallback; also the `www_redirect` middleware and the router tests.
+- `src/view.rs` — HTML rendering: `shell(title, body, nav)` (the shared maud layout — doctype, head, stylesheet, generated nav), `render_page`, and `not_found`. Nav links are generated from the page list, so it stays in sync automatically.
+- `src/handlers/` — `assets.rs` serves `/style.css` from drizzle-css's embedded `CSS_MIN` constant. (Registered in `handlers/mod.rs`.)
+- `src/ssh.rs` — SSH/TUI frontend (russh). Renders the same `Page` Markdown to plain terminal text over a PTY; navigation and the footer are generated from the page list (each page reached by the first letter of its nav label). Loads its host key via `host_key()`. A ratatui menu is deferred (issue #2).
 
-Rendering: HTML uses maud (`html!` macro, compile-checked); Markdown is parsed with pulldown-cmark (per request — a `ponytail:` note marks the `LazyLock` cache upgrade if it ever matters). The HTTP path renders Markdown to HTML; the SSH path walks the same Markdown to text. Styling is drizzle-css (classless — no classes in the markup), so the semantic HTML and Markdown output are styled for free.
+Rendering: HTML uses maud (`html!`, compile-checked) and is rendered per page **once at startup** (the router captures the strings); Markdown is parsed with pulldown-cmark. The SSH path walks the same Markdown to text on demand. Styling is drizzle-css (classless — no classes in the markup), so the HTML is styled for free.
 
 ## Deployment
 
@@ -50,7 +50,7 @@ Deployment gotchas (all hit in practice):
 - **`www` needs its own cert** (`fly certs add www.thombruce.com`) even though `main.rs` redirects it to the apex — the TLS handshake happens before the redirect can be sent. Also add a `www` CNAME.
 - **Scale-to-zero** (`min_machines_running = 0`): a first SSH connection to a cold machine may time out; reconnect wakes it. Set to `1` for always-on.
 - **SSH host key** is loaded from the `SSH_HOST_KEY` secret (an OpenSSH-format private key); set it (`fly secrets set SSH_HOST_KEY="$(cat keyfile)"`) so the fingerprint stays stable across deploys. If unset, `ssh.rs` falls back to an ephemeral key (fine for local dev) — but then a redeploy changes the fingerprint and clients get `REMOTE HOST IDENTIFICATION HAS CHANGED`. Set once; a Fly secret persists across deploys.
-- **`content/` must be in the build context** — page Markdown is pulled in with `include_str!` at compile time, so the `Dockerfile` copies `content/` alongside `src/`. A new page file just works as long as it's committed.
+- **`content/` must be in the build context** — page Markdown is embedded from `content/pages/` with `include_dir!` at compile time, so the `Dockerfile` copies `content/` alongside `src/`. A new page appears once its file is committed and the image rebuilt.
 - **Clean builds are slow** — drizzle-css compiles its CSS via lightningcss at build time, dragging a large dependency tree. It's build-time only (no runtime cost) and cached after the first build.
 
 ## Linting

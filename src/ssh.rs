@@ -1,7 +1,9 @@
 //! SSH frontend — serves the site as a minimal TUI over SSH.
 //!
-//! v1 is raw ANSI + single-key navigation (h/a/q); a ratatui layout is
-//! deferred (see issue #2). Public access: any auth method is accepted.
+//! Raw ANSI with single-key navigation: each page is reachable by the first
+//! letter of its nav label, generated from the discovered pages (so adding a
+//! page needs no change here). A ratatui menu is deferred (see issue #2).
+//! Public access: any auth method is accepted.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -12,15 +14,15 @@ use russh::server::ChannelOpenHandle;
 use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::{Channel, ChannelId};
 
-use crate::content::{self, Page};
+use crate::content::Page;
 
-pub async fn serve(addr: String) -> std::io::Result<()> {
+pub async fn serve(addr: String, pages: Arc<Vec<Page>>) -> std::io::Result<()> {
     let config = Arc::new(Config {
         keys: vec![host_key()?],
         ..Config::default()
     });
 
-    let mut server = AppServer;
+    let mut server = AppServer { pages };
     server.run_on_address(config, addr).await
 }
 
@@ -37,17 +39,23 @@ fn host_key() -> std::io::Result<PrivateKey> {
     )
 }
 
-struct AppServer;
+struct AppServer {
+    pages: Arc<Vec<Page>>,
+}
 
 impl Server for AppServer {
     type Handler = Conn;
 
     fn new_client(&mut self, _peer: Option<SocketAddr>) -> Conn {
-        Conn
+        Conn {
+            pages: self.pages.clone(),
+        }
     }
 }
 
-struct Conn;
+struct Conn {
+    pages: Arc<Vec<Page>>,
+}
 
 impl Handler for Conn {
     type Error = russh::Error;
@@ -80,7 +88,9 @@ impl Handler for Conn {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         session.channel_success(channel)?;
-        session.data(channel, page(&content::HOME))?;
+        if let Some(first) = self.pages.first() {
+            session.data(channel, page_screen(first, &self.pages))?;
+        }
         Ok(())
     }
 
@@ -91,25 +101,47 @@ impl Handler for Conn {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         for &byte in data {
-            match byte {
-                b'h' | b'H' => session.data(channel, page(&content::HOME))?,
-                b'a' | b'A' => session.data(channel, page(&content::ABOUT))?,
-                b'c' | b'C' => session.data(channel, page(&content::COLOPHON))?,
-                // q, Q, Ctrl-C, Ctrl-D
-                b'q' | b'Q' | 3 | 4 => {
-                    session.data(channel, b"\r\nBye.\r\n".to_vec())?;
-                    session.close(channel)?;
-                }
-                _ => {}
+            // q, Q, Ctrl-C, Ctrl-D quit.
+            if matches!(byte, b'q' | b'Q' | 3 | 4) {
+                session.data(channel, b"\r\nBye.\r\n".to_vec())?;
+                session.close(channel)?;
+                continue;
+            }
+            let key = char::from(byte).to_ascii_lowercase();
+            if let Some(page) = self.pages.iter().find(|p| page_key(p) == Some(key)) {
+                session.data(channel, page_screen(page, &self.pages))?;
             }
         }
         Ok(())
     }
 }
 
-// Render a page's Markdown to plain terminal text and wrap it in a screen.
-fn page(page: &Page) -> Vec<u8> {
-    screen(&render_text(page.markdown))
+// The nav key for a page: the first letter of its nav label, lowercased.
+// ponytail: labels sharing a first letter collide (first match wins); the
+// ratatui menu in #2 replaces this with proper selection.
+fn page_key(page: &Page) -> Option<char> {
+    page.nav.chars().next().map(|c| c.to_ascii_lowercase())
+}
+
+// A footer listing every page's key + label, then quit — generated from pages.
+fn footer(pages: &[Page]) -> String {
+    let mut out = String::new();
+    for page in pages {
+        if let Some(key) = page_key(page) {
+            out.push('[');
+            out.push(key);
+            out.push_str("] ");
+            out.push_str(&page.nav.to_lowercase());
+            out.push_str("  ");
+        }
+    }
+    out.push_str("[q] quit");
+    out
+}
+
+// Render a page's Markdown to terminal text and wrap it in a screen.
+fn page_screen(page: &Page, pages: &[Page]) -> Vec<u8> {
+    screen(&render_text(&page.body), &footer(pages))
 }
 
 // Markdown -> plain text. Drops syntax markers; blocks separated by blank
@@ -131,18 +163,36 @@ fn render_text(markdown: &str) -> String {
     out.trim_end().to_owned()
 }
 
-// Clear screen, render body (PTYs need CRLF), append a nav footer.
-fn screen(body: &str) -> Vec<u8> {
+// Clear screen, render body (PTYs need CRLF), append the nav footer.
+fn screen(body: &str, footer: &str) -> Vec<u8> {
     let mut out = String::from("\x1b[2J\x1b[H");
     out.push_str(&body.replace('\n', "\r\n"));
-    out.push_str("\r\n\r\n[h] home  [a] about  [c] colophon  [q] quit\r\n");
+    out.push_str("\r\n\r\n");
+    out.push_str(footer);
+    out.push_str("\r\n");
     out.into_bytes()
 }
 
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use super::{render_text, screen};
+    use super::{Page, footer, render_text, screen};
+
+    fn page(nav: &str) -> Page {
+        Page {
+            title: nav.to_owned(),
+            nav: nav.to_owned(),
+            order: 0,
+            path: String::new(),
+            body: String::new(),
+        }
+    }
+
+    #[test]
+    fn footer_lists_page_keys_then_quit() {
+        let pages = vec![page("Home"), page("About")];
+        assert_eq!(footer(&pages), "[h] home  [a] about  [q] quit");
+    }
 
     #[test]
     fn render_text_strips_syntax_and_bullets_lists() {
@@ -159,17 +209,14 @@ mod tests {
     #[test]
     fn screen_clears_converts_newlines_and_appends_footer() -> Result<(), std::string::FromUtf8Error>
     {
-        let out = String::from_utf8(screen("a\nb"))?;
+        let out = String::from_utf8(screen("a\nb", "[q] quit"))?;
 
         assert!(
             out.starts_with("\x1b[2J\x1b[H"),
             "should clear the screen first"
         );
         assert!(out.contains("a\r\nb"), "newlines become CRLF for the PTY");
-        assert!(
-            out.ends_with("[h] home  [a] about  [c] colophon  [q] quit\r\n"),
-            "footer appended"
-        );
+        assert!(out.ends_with("[q] quit\r\n"), "footer appended");
         Ok(())
     }
 }

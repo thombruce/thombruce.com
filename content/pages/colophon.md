@@ -1,3 +1,9 @@
+---
+title: Colophon
+nav: Colophon
+order: 2
+path: /colophon
+---
 # Colophon
 
 This site is built in Rust with [Axum](https://github.com/tokio-rs/axum), and served two ways from a single binary: over HTTP as HTML, and over SSH as a terminal UI — try `ssh thombruce.com`.

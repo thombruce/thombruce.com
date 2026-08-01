@@ -1,21 +1,39 @@
 use axum::{
     Router,
     extract::Request,
-    http::header::HOST,
+    http::StatusCode,
     middleware::{Next, from_fn},
-    response::{IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     routing::get,
 };
 
-use crate::handlers::{assets, errors, pages};
+use crate::content::Page;
+use crate::handlers::assets;
+use crate::view;
 
-pub fn app() -> Router {
-    Router::new()
-        .route("/", get(pages::home))
-        .route("/about", get(pages::about))
-        .route("/colophon", get(pages::colophon))
+// Build the router from the discovered pages: one route per page (pre-rendered
+// at startup), the stylesheet, and a 404 fallback. Adding a page needs no edit
+// here — it appears once its file is in content/pages/.
+pub fn app(pages: &[Page]) -> Router {
+    let mut router = Router::new();
+    for page in pages {
+        let html = view::render_page(page, pages);
+        router = router.route(
+            &page.path,
+            get(move || {
+                let html = html.clone();
+                async move { Html(html) }
+            }),
+        );
+    }
+
+    let not_found = view::not_found(pages);
+    router
         .route("/style.css", get(assets::stylesheet))
-        .fallback(errors::not_found)
+        .fallback(move || {
+            let html = not_found.clone();
+            async move { (StatusCode::NOT_FOUND, Html(html)) }
+        })
         .layer(from_fn(www_redirect))
 }
 
@@ -24,7 +42,7 @@ pub fn app() -> Router {
 async fn www_redirect(req: Request, next: Next) -> Response {
     if let Some(apex) = req
         .headers()
-        .get(HOST)
+        .get(axum::http::header::HOST)
         .and_then(|h| h.to_str().ok())
         .and_then(|host| host.strip_prefix("www."))
     {
@@ -41,10 +59,14 @@ async fn www_redirect(req: Request, next: Next) -> Response {
 mod tests {
     use super::*;
     use axum::body::Body;
-    use axum::http::StatusCode;
+    use axum::http::header::HOST;
     use tower::ServiceExt; // for `oneshot`
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    fn test_app() -> Result<Router, String> {
+        Ok(app(&crate::content::load()?))
+    }
 
     #[tokio::test]
     async fn www_redirects_to_apex_preserving_path() -> TestResult {
@@ -52,7 +74,7 @@ mod tests {
             .uri("/about")
             .header(HOST, "www.thombruce.com")
             .body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = test_app()?.oneshot(req).await?;
 
         assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT);
         let location = res.headers().get("location").and_then(|v| v.to_str().ok());
@@ -61,12 +83,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn apex_host_passes_through() -> TestResult {
+    async fn home_route_is_served() -> TestResult {
         let req = Request::builder()
             .uri("/")
             .header(HOST, "thombruce.com")
             .body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = test_app()?.oneshot(req).await?;
 
         assert_eq!(res.status(), StatusCode::OK);
         Ok(())
@@ -75,7 +97,7 @@ mod tests {
     #[tokio::test]
     async fn stylesheet_served_as_css() -> TestResult {
         let req = Request::builder().uri("/style.css").body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = test_app()?.oneshot(req).await?;
 
         assert_eq!(res.status(), StatusCode::OK);
         let ct = res
@@ -87,9 +109,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unknown_route_is_404() -> TestResult {
+    async fn unknown_route_is_html_404() -> TestResult {
         let req = Request::builder().uri("/nope").body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = test_app()?.oneshot(req).await?;
 
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
         let ct = res
