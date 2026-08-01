@@ -18,13 +18,16 @@ Rust edition 2024.
 
 ## Architecture
 
-- `src/main.rs` — builds the `axum::Router`, registers routes, binds the TCP listener. Add new routes here.
-- `src/handlers/` — request handlers, one module per concern. `pages.rs` holds page handlers; each is an `async fn` returning the response. Register the module in `handlers/mod.rs` and wire routes in `main.rs`.
-- `main.rs` reads `PORT` from env and shuts down gracefully on SIGTERM/SIGINT — required by Render.
+Two frontends serve the same content from one binary:
+
+- `src/content.rs` — page content as data, decoupled from any frontend.
+- `src/main.rs` — spawns both listeners: axum HTTP (foreground, graceful shutdown) and the SSH server (background task). Reads `PORT`/`SSH_PORT` from env via `env_port`.
+- `src/handlers/` — HTTP handlers. `pages.rs` renders `content::*` as text; `errors.rs` is the 404 fallback. Register modules in `handlers/mod.rs`, wire routes in `main.rs`.
+- `src/ssh.rs` — SSH/TUI frontend (russh). Renders `content::*` over a PTY with single-key nav (h/a/q). v1 is raw ANSI; ratatui is deferred (issue #2).
 
 ## Deployment
 
-Deployed to Render via `render.yaml` (Blueprint), using Render's **native Rust runtime** — no Dockerfile. Push to the default branch auto-deploys: Render runs `cargo build --release` and starts `./target/release/thombruce`. Render provides TLS, reverse proxy, and process supervision; it injects `PORT` and sends SIGTERM on deploy/stop. `RUST_VERSION` is pinned in `render.yaml`.
+Deployed to **Fly.io** — one machine publishes HTTP (via `[http_service]`) and raw TCP `:22 → :2222` for SSH (via `[[services]]`). SSH needs a **dedicated IP** (`fly ips allocate-v4`); shared IPv4 only routes HTTP/TLS. Build is the `Dockerfile` (multi-stage, non-root). Deploy with `fly deploy`; config in `fly.toml`. `main.rs` shuts down gracefully on SIGTERM/SIGINT.
 
 ## Linting
 
