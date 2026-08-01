@@ -7,14 +7,15 @@ use axum::{
 use tokio::signal;
 
 mod handlers;
-use handlers::pages;
+use handlers::{errors, pages};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // build our application with a single route
     let app = Router::new()
         .route("/", get(pages::home))
-        .route("/about", get(pages::about));
+        .route("/about", get(pages::about))
+        .fallback(errors::not_found);
 
     // Render (and most PaaS) inject the port via $PORT; fall back for local dev.
     let port = std::env::var("PORT")
