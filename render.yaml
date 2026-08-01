@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: thombruce
+    runtime: rust
+    plan: starter
+    buildCommand: cargo build --release
+    startCommand: ./target/release/thombruce
+    autoDeploy: true
+    envVars:
+      # edition 2024 needs a recent toolchain; pin so builds are reproducible.
+      - key: RUST_VERSION
+        value: "1.90"
