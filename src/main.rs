@@ -6,6 +6,7 @@ use axum::{
 };
 use tokio::signal;
 
+mod content;
 mod handlers;
 use handlers::{errors, pages};
 
