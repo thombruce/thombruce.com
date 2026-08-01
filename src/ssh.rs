@@ -15,18 +15,26 @@ use russh::{Channel, ChannelId};
 use crate::content::{self, Page};
 
 pub async fn serve(addr: String) -> std::io::Result<()> {
-    // Ephemeral host key: regenerated each boot. Fine for a public read-only
-    // service; clients will just see a changed fingerprint after a redeploy.
-    // ponytail: persist a key (env/secret) if stable fingerprints ever matter.
-    let key = PrivateKey::random(&mut rand::rng(), ssh_key::Algorithm::Ed25519)
-        .map_err(std::io::Error::other)?;
     let config = Arc::new(Config {
-        keys: vec![key],
+        keys: vec![host_key()?],
         ..Config::default()
     });
 
     let mut server = AppServer;
     server.run_on_address(config, addr).await
+}
+
+// Load the SSH host key from $SSH_HOST_KEY (an OpenSSH-format private key) so
+// the fingerprint stays stable across deploys. Falls back to an ephemeral key
+// when unset — fine for local dev, but a redeploy then changes the fingerprint.
+fn host_key() -> std::io::Result<PrivateKey> {
+    std::env::var("SSH_HOST_KEY").map_or_else(
+        |_| {
+            PrivateKey::random(&mut rand::rng(), ssh_key::Algorithm::Ed25519)
+                .map_err(std::io::Error::other)
+        },
+        |pem| PrivateKey::from_openssh(pem).map_err(std::io::Error::other),
+    )
 }
 
 struct AppServer;

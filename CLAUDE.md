@@ -45,7 +45,7 @@ Deployment gotchas (all hit in practice):
 - **glibc must match** between builder and runtime images, or the binary crash-loops with `GLIBC_x.y not found` — both are pinned to bookworm in the `Dockerfile`.
 - **`www` needs its own cert** (`fly certs add www.thombruce.com`) even though `main.rs` redirects it to the apex — the TLS handshake happens before the redirect can be sent. Also add a `www` CNAME.
 - **Scale-to-zero** (`min_machines_running = 0`): a first SSH connection to a cold machine may time out; reconnect wakes it. Set to `1` for always-on.
-- **Ephemeral SSH host key**: regenerated each boot, so the fingerprint changes on redeploy. Persist via a Fly secret if stable fingerprints matter.
+- **SSH host key** is loaded from the `SSH_HOST_KEY` secret (an OpenSSH-format private key); set it (`fly secrets set SSH_HOST_KEY="$(cat keyfile)"`) so the fingerprint stays stable across deploys. If unset, `ssh.rs` falls back to an ephemeral key (fine for local dev) — but then a redeploy changes the fingerprint and clients get `REMOTE HOST IDENTIFICATION HAS CHANGED`.
 
 ## Linting
 
