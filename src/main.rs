@@ -2,6 +2,10 @@ use std::net::SocketAddr;
 
 use axum::{
     Router,
+    extract::Request,
+    http::header::HOST,
+    middleware::{Next, from_fn},
+    response::{IntoResponse, Redirect, Response},
     routing::get,
 };
 use tokio::signal;
@@ -17,7 +21,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(pages::home))
         .route("/about", get(pages::about))
-        .fallback(errors::not_found);
+        .fallback(errors::not_found)
+        .layer(from_fn(www_redirect));
 
     // Render (and most PaaS) inject the HTTP port via $PORT; fall back for local dev.
     // SSH binds a high port locally (privileged ports need root); a host maps :22 to it.
@@ -48,6 +53,21 @@ fn env_port(var: &str, default: u16) -> u16 {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(default)
+}
+
+// Redirect www.* to the apex host, preserving path, so www doesn't dead-end.
+// ponytail: assumes no port in the Host header (true behind Fly's :443 proxy).
+async fn www_redirect(req: Request, next: Next) -> Response {
+    if let Some(apex) = req
+        .headers()
+        .get(HOST)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|host| host.strip_prefix("www."))
+    {
+        let path = req.uri().path_and_query().map_or("/", |pq| pq.as_str());
+        return Redirect::permanent(&format!("https://{apex}{path}")).into_response();
+    }
+    next.run(req).await
 }
 
 // Resolves when the process receives Ctrl+C or SIGTERM (sent by Render on deploy/stop).
