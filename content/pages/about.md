@@ -1,3 +1,9 @@
+---
+title: About
+nav: About
+order: 1
+path: /about
+---
 # About
 
 1. Rubyist

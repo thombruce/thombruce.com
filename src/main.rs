@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use tokio::signal;
 
@@ -10,7 +11,9 @@ mod view;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let app = routes::app();
+    // Discover pages once at startup; a malformed page fails here, loudly.
+    let pages = Arc::new(content::load().map_err(std::io::Error::other)?);
+    let app = routes::app(pages.as_slice());
 
     // Render (and most PaaS) inject the HTTP port via $PORT; fall back for local dev.
     // SSH binds a high port locally (privileged ports need root); a host maps :22 to it.
@@ -21,8 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // shutdown, the process exits and this task is dropped.
     // ponytail: no graceful shutdown for SSH connections yet — add if abrupt
     // disconnects on redeploy become a problem.
+    let ssh_pages = Arc::clone(&pages);
     tokio::spawn(async move {
-        if let Err(err) = ssh::serve(ssh_addr).await {
+        if let Err(err) = ssh::serve(ssh_addr, ssh_pages).await {
             eprintln!("ssh server error: {err}");
         }
     });
