@@ -7,8 +7,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use russh::keys::{PrivateKey, ssh_key};
-use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::server::ChannelOpenHandle;
+use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::{Channel, ChannelId};
 
 use crate::content;
@@ -111,12 +111,19 @@ mod tests {
     use super::screen;
 
     #[test]
-    fn screen_clears_converts_newlines_and_appends_footer() -> Result<(), std::string::FromUtf8Error> {
+    fn screen_clears_converts_newlines_and_appends_footer() -> Result<(), std::string::FromUtf8Error>
+    {
         let out = String::from_utf8(screen("a\nb"))?;
 
-        assert!(out.starts_with("\x1b[2J\x1b[H"), "should clear the screen first");
+        assert!(
+            out.starts_with("\x1b[2J\x1b[H"),
+            "should clear the screen first"
+        );
         assert!(out.contains("a\r\nb"), "newlines become CRLF for the PTY");
-        assert!(out.ends_with("[h] home  [a] about  [q] quit\r\n"), "footer appended");
+        assert!(
+            out.ends_with("[h] home  [a] about  [q] quit\r\n"),
+            "footer appended"
+        );
         Ok(())
     }
 }

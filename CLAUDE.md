@@ -10,11 +10,13 @@ Personal website for thombruce.com — an Axum (Rust) web server. Early stage; r
 
 - `cargo run` — start the server, listens on `0.0.0.0:$PORT` (default 3000)
 - `cargo build` / `cargo build --release` — build
-- `cargo test` — run tests (none yet)
+- `cargo test` — run tests
 - `cargo fmt` — format
-- `cargo clippy` — lint
+- `cargo clippy` / `cargo clippy --all-targets` — lint (the latter also lints test code)
 
 Rust edition 2024.
+
+Tests live in `#[cfg(test)]` modules beside the code (`main.rs`, `ssh.rs`). HTTP handlers are exercised by building `app()` and driving it with `tower`'s `oneshot` (no live port). Only non-trivial logic is tested (www redirect, 404, SSH `screen`); const-returning page handlers are not. Test modules carry `#[allow(clippy::panic_in_result_fn)]` because assertions panic by design — the panic-restriction lints target the server, not tests.
 
 ## Architecture
 
@@ -27,7 +29,7 @@ Two frontends serve the same content from one binary:
 
 ## Deployment
 
-Deployed to **Fly.io** — one machine publishes HTTP (via `[http_service]`) and raw TCP `:22 → :2222` for SSH (via `[[services]]`). Build is the `Dockerfile` (multi-stage, non-root); config in `fly.toml`. `main.rs` shuts down gracefully on SIGTERM/SIGINT. Pushing to `main` auto-deploys via `.github/workflows/fly-deploy.yml` (needs the `FLY_API_TOKEN` repo secret); `fly deploy` deploys manually.
+Deployed to **Fly.io** — one machine publishes HTTP (via `[http_service]`) and raw TCP `:22 → :2222` for SSH (via `[[services]]`). Build is the `Dockerfile` (multi-stage, non-root); config in `fly.toml`. `main.rs` shuts down gracefully on SIGTERM/SIGINT. CI is `.github/workflows/ci.yml`: a `check` job (fmt, clippy `--all-targets`, test) runs on every push to `main` and on PRs; a `deploy` job `needs: check` and runs only on push to `main`, so a red check blocks the deploy. Deploy needs the `FLY_API_TOKEN` repo secret. `fly deploy` deploys manually.
 
 Common flyctl commands:
 
