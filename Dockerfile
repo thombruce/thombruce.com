@@ -1,5 +1,6 @@
 # ---- build ----
-FROM rust:1-slim AS builder
+# Builder and runtime must share a glibc: pin both to bookworm.
+FROM rust:1-slim-bookworm AS builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src

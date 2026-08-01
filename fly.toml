@@ -1,28 +1,27 @@
-# fly.toml — HTTP + raw-TCP SSH from a single machine.
-# `app` must be globally unique; `fly launch` will adjust it if taken.
-app = "thombruce"
-primary_region = "lhr"
+# fly.toml app configuration file generated for thombruce on 2026-08-01T15:44:17+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'thombruce'
+primary_region = 'lhr'
 
 [build]
-
 [env]
-  PORT = "3000"
-  SSH_PORT = "2222"
+  PORT = '3000'
+  SSH_PORT = '2222'
 
-# Browser frontend. Shared anycast IPs (SNI-routed), free.
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
-# SSH frontend. Raw TCP :22 -> :2222. Needs a DEDICATED IP (see deploy steps);
-# shared IPv4 only routes HTTP/TLS.
 [[services]]
-  protocol = "tcp"
+  protocol = 'tcp'
   internal_port = 2222
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
@@ -30,5 +29,5 @@ primary_region = "lhr"
     port = 22
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  size = 'shared-cpu-1x'
+  memory = '256mb'
