@@ -8,6 +8,7 @@ use tokio::signal;
 
 mod content;
 mod handlers;
+mod ssh;
 use handlers::{errors, pages};
 
 #[tokio::main]
@@ -18,20 +19,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/about", get(pages::about))
         .fallback(errors::not_found);
 
-    // Render (and most PaaS) inject the port via $PORT; fall back for local dev.
-    let port = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(3000);
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    // Render (and most PaaS) inject the HTTP port via $PORT; fall back for local dev.
+    // SSH binds a high port locally (privileged ports need root); a host maps :22 to it.
+    let http_addr = SocketAddr::from(([0, 0, 0, 0], env_port("PORT", 3000)));
+    let ssh_addr = format!("0.0.0.0:{}", env_port("SSH_PORT", 2222));
+
+    // SSH frontend runs in the background; when the HTTP server returns on
+    // shutdown, the process exits and this task is dropped.
+    // ponytail: no graceful shutdown for SSH connections yet — add if abrupt
+    // disconnects on redeploy become a problem.
+    tokio::spawn(async move {
+        if let Err(err) = ssh::serve(ssh_addr).await {
+            eprintln!("ssh server error: {err}");
+        }
+    });
 
     // run our app with hyper, listening on all interfaces (required in a container)
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = tokio::net::TcpListener::bind(http_addr).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
     Ok(())
+}
+
+fn env_port(var: &str, default: u16) -> u16 {
+    std::env::var(var)
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(default)
 }
 
 // Resolves when the process receives Ctrl+C or SIGTERM (sent by Render on deploy/stop).
