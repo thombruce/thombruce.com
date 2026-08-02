@@ -310,11 +310,11 @@ impl Conn {
 // let one connection request a multi-gigabyte allocation and OOM the process.
 // MAX_DIM caps a single terminal's buffers at ~2*500*500 cells.
 fn dim(v: u32) -> u16 {
-    const MAX_DIM: u32 = 500;
-    u16::try_from(v.clamp(1, MAX_DIM)).unwrap_or(u16::MAX)
+    const MAX_DIM: u16 = 500;
+    // Values above u16::MAX saturate, then clamp bounds them into [1, MAX_DIM].
+    u16::try_from(v).unwrap_or(u16::MAX).clamp(1, MAX_DIM)
 }
 
-// Render the two-pane layout: page menu, scrollable content, key-hint footer.
 // Max reading-column width; the column is centered when the terminal is wider.
 const CONTENT_WIDTH: u16 = 80;
 
