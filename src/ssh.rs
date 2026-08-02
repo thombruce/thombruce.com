@@ -213,6 +213,10 @@ impl Handler for Conn {
                     return Ok(());
                 }
                 // Escape sequences: arrows (ESC [ A/B) and PageUp/Down (ESC [ 5~/6~).
+                // ponytail: only whole, exact-shape sequences within one data()
+                // chunk are recognised; a sequence split across TCP reads or a
+                // modified variant (ESC [ 5 ; 2 ~) is dropped. Fine interactively;
+                // add a carry-over buffer for a partial ESC tail if it bites.
                 0x1b if data.get(i.saturating_add(1)) == Some(&b'[') => {
                     match data.get(i.saturating_add(2)) {
                         Some(b'A') => self.app.select_prev(),
@@ -298,9 +302,14 @@ impl Conn {
     }
 }
 
-// Clamp an SSH-reported dimension into a sane terminal size (at least 1 cell).
+// Clamp a client-supplied PTY dimension into a sane terminal size. The upper
+// bound matters for safety, not just sanity: ratatui eagerly allocates two
+// width*height cell buffers, so an unclamped size (up to u16::MAX each) would
+// let one connection request a multi-gigabyte allocation and OOM the process.
+// MAX_DIM caps a single terminal's buffers at ~2*500*500 cells.
 fn dim(v: u32) -> u16 {
-    u16::try_from(v).unwrap_or(u16::MAX).max(1)
+    const MAX_DIM: u32 = 500;
+    u16::try_from(v.clamp(1, MAX_DIM)).unwrap_or(u16::MAX)
 }
 
 // Render the two-pane layout: page menu, scrollable content, key-hint footer.
@@ -368,7 +377,7 @@ fn render_text(markdown: &str) -> String {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use super::{App, CLEAR, Page, render_text, ui};
+    use super::{App, CLEAR, Page, dim, render_text, ui};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
@@ -380,6 +389,15 @@ mod tests {
             path: String::new(),
             body: body.to_owned(),
         }
+    }
+
+    #[test]
+    fn dim_clamps_hostile_sizes() {
+        // A client-controlled huge dimension must be bounded, or ratatui's
+        // eager width*height buffer allocation OOMs the process.
+        assert_eq!(dim(0), 1, "zero floored to 1 cell");
+        assert_eq!(dim(80), 80, "normal size passes through");
+        assert_eq!(dim(u32::MAX), 500, "hostile size capped at MAX_DIM");
     }
 
     #[test]
