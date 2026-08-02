@@ -15,7 +15,7 @@ use std::sync::Arc;
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{Frame, TerminalOptions, Viewport};
@@ -315,9 +315,15 @@ fn dim(v: u32) -> u16 {
 }
 
 // Render the two-pane layout: page menu, scrollable content, key-hint footer.
+// Max reading-column width; the column is centered when the terminal is wider.
+const CONTENT_WIDTH: u16 = 80;
+
 fn ui(frame: &mut Frame, app: &mut App, pages: &[Page]) {
-    let [body, foot] =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
+    // Center a max-width column; body and footer both live inside it.
+    let [column] = Layout::horizontal([Constraint::Max(CONTENT_WIDTH)])
+        .flex(Flex::Center)
+        .areas(frame.area());
+    let [body, foot] = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(column);
 
     let text = pages
         .get(app.selected)
@@ -331,9 +337,12 @@ fn ui(frame: &mut Frame, app: &mut App, pages: &[Page]) {
     app.content_lines = lines;
     app.scroll = app.scroll.min(lines.saturating_sub(body.height));
 
+    // Body left-aligned (centered prose reads badly); footer centered.
     frame.render_widget(paragraph.scroll((app.scroll, 0)), body);
     frame.render_widget(
-        Paragraph::new(footer(pages)).style(Style::default().add_modifier(Modifier::DIM)),
+        Paragraph::new(footer(pages))
+            .alignment(Alignment::Center)
+            .style(Style::default().add_modifier(Modifier::DIM)),
         foot,
     );
 }
