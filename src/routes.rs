@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     Router,
     extract::Request,
@@ -8,16 +10,18 @@ use axum::{
 };
 
 use crate::content::Page;
-use crate::handlers::assets;
+use crate::handlers::{assets, count, echo};
 use crate::view;
 
-// Build the router from the discovered pages: one route per page (pre-rendered
-// at startup), the stylesheet, and a 404 fallback. Adding a page needs no edit
-// here — it appears once its file is in content/pages/.
-pub fn app(pages: &[Page]) -> Router {
+// Build the router: one route per discovered content page (pre-rendered at
+// startup), the stylesheet, two dynamic (per-request) pages, and a 404 fallback.
+// Adding a *content* page needs no edit here — it appears once its file is in
+// content/pages/. The dynamic pages carry their own logic in handlers/; here we
+// just register them, like the stylesheet.
+pub fn app(pages: &Arc<Vec<Page>>) -> Router {
     let mut router = Router::new();
-    for page in pages {
-        let html = view::render_page(page, pages);
+    for page in pages.iter() {
+        let html = view::render_page(page, pages.as_slice());
         router = router.route(
             &page.path,
             get(move || {
@@ -27,9 +31,11 @@ pub fn app(pages: &[Page]) -> Router {
         );
     }
 
-    let not_found = view::not_found(pages);
+    let not_found = view::not_found(pages.as_slice());
     router
         .route("/style.css", get(assets::stylesheet))
+        .route("/count", count::route(Arc::clone(pages)))
+        .route("/echo", echo::route(Arc::clone(pages)))
         .fallback(move || {
             let html = not_found.clone();
             async move { (StatusCode::NOT_FOUND, Html(html)) }
@@ -65,7 +71,50 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     fn test_app() -> Result<Router, String> {
-        Ok(app(&crate::content::load()?))
+        Ok(app(&Arc::new(crate::content::load()?)))
+    }
+
+    async fn body_string(res: Response) -> Result<String, Box<dyn std::error::Error>> {
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await?;
+        Ok(String::from_utf8(bytes.to_vec())?)
+    }
+
+    #[tokio::test]
+    async fn count_increments_across_requests() -> TestResult {
+        // Router clones share the same atomic counter, so two hits count 1 then 2.
+        let app = test_app()?;
+        let first = app
+            .clone()
+            .oneshot(Request::builder().uri("/count").body(Body::empty())?)
+            .await?;
+        let second = app
+            .oneshot(Request::builder().uri("/count").body(Body::empty())?)
+            .await?;
+
+        assert!(
+            body_string(first)
+                .await?
+                .contains("served <strong>1</strong> time")
+        );
+        assert!(
+            body_string(second)
+                .await?
+                .contains("served <strong>2</strong> times")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn echo_reflects_the_request() -> TestResult {
+        let req = Request::builder()
+            .uri("/echo")
+            .header("user-agent", "test-agent")
+            .body(Body::empty())?;
+        let body = body_string(test_app()?.oneshot(req).await?).await?;
+
+        assert!(body.contains("/echo"));
+        assert!(body.contains("test-agent"));
+        Ok(())
     }
 
     #[tokio::test]
