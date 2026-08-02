@@ -43,10 +43,27 @@ pub fn load() -> Result<Content, String> {
     })
 }
 
+// True for files we treat as content — Markdown only, so stray files dropped
+// into a content directory (.DS_Store, editor swaps, README.txt) are ignored
+// rather than parsed and failing startup.
+fn is_markdown(path: &std::path::Path) -> bool {
+    path.extension().and_then(|e| e.to_str()) == Some("md")
+}
+
+// A slug must be URL- and route-safe: non-empty, lowercase ascii letters,
+// digits, and hyphens only. Guards against axum route-pattern panics and
+// percent-encoding mismatches from odd filenames.
+fn is_valid_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
 // Parse every embedded page, sorted by `order`.
 fn load_pages() -> Result<Vec<Page>, String> {
     let mut pages = Vec::new();
-    for file in PAGES.files() {
+    for file in PAGES.files().filter(|f| is_markdown(f.path())) {
         let name = file.path().display();
         let raw = file
             .contents_utf8()
@@ -62,7 +79,7 @@ fn load_pages() -> Result<Vec<Page>, String> {
 // ISO-8601 dates sort correctly as plain strings, so no date type is needed.
 fn load_posts() -> Result<Vec<Post>, String> {
     let mut posts = Vec::new();
-    for file in POSTS.files() {
+    for file in POSTS.files().filter(|f| is_markdown(f.path())) {
         let name = file.path().display();
         let slug = file
             .path()
@@ -70,6 +87,9 @@ fn load_posts() -> Result<Vec<Post>, String> {
             .and_then(|s| s.to_str())
             .ok_or_else(|| format!("{name}: could not derive slug from filename"))?
             .to_owned();
+        if !is_valid_slug(&slug) {
+            return Err(format!("{name}: slug '{slug}' must be lowercase [a-z0-9-]"));
+        }
         let raw = file
             .contents_utf8()
             .ok_or_else(|| format!("{name}: not valid UTF-8"))?;
@@ -165,7 +185,17 @@ fn parse_post(raw: &str, slug: String) -> Result<Post, String> {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use super::{load_posts, parse, parse_post};
+    use super::{is_valid_slug, load_posts, parse, parse_post};
+
+    #[test]
+    fn slug_validation_accepts_safe_rejects_unsafe() {
+        assert!(is_valid_slug("on-simplicity"));
+        assert!(is_valid_slug("post-42"));
+        assert!(!is_valid_slug(""), "empty rejected");
+        assert!(!is_valid_slug("Caps"), "uppercase rejected");
+        assert!(!is_valid_slug("has space"), "space rejected");
+        assert!(!is_valid_slug("route{param}"), "axum metachars rejected");
+    }
 
     #[test]
     fn parses_post_frontmatter_and_slug() -> Result<(), String> {

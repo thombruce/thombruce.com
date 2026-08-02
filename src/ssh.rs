@@ -254,12 +254,13 @@ impl Handler for Conn {
                     session.close(channel)?;
                     return Ok(());
                 }
-                // Escape sequences: arrows (ESC [ A/B scroll a line) and
+                // CSI escape sequences: arrows (ESC [ A/B scroll a line) and
                 // PageUp/Down (ESC [ 5~/6~ scroll a page). Scrolling applies on
                 // every screen; a lone ESC (no `[`) falls through to handle_key.
-                // ponytail: only whole, exact-shape sequences within one data()
-                // chunk are recognised; a sequence split across TCP reads or a
-                // modified variant (ESC [ 5 ; 2 ~) is dropped. Fine interactively;
+                // Any other CSI is consumed whole up to its final byte, so its
+                // tail can't leak back in as keystrokes (e.g. Right arrow's `C`
+                // being read as a nav key).
+                // ponytail: a sequence split across TCP reads is still dropped;
                 // add a carry-over buffer for a partial ESC tail if it bites.
                 0x1b if data.get(i.saturating_add(1)) == Some(&b'[') => {
                     match data.get(i.saturating_add(2)) {
@@ -277,8 +278,10 @@ impl Handler for Conn {
                             dirty = true;
                             continue;
                         }
+                        // Unrecognized: skip params/intermediates (0x20..=0x3f)
+                        // to the final byte (0x40..=0x7e) and consume through it.
                         _ => {
-                            i = i.saturating_add(1);
+                            i = csi_end(data, i);
                             continue;
                         }
                     }
@@ -430,6 +433,18 @@ impl Conn {
             Some(Target::Blog)
         }
     }
+}
+
+// Given `start` at the ESC of a `ESC [ …` sequence, return the index just past
+// the sequence's final byte. CSI params/intermediates are 0x20..=0x3f; the final
+// byte is 0x40..=0x7e. If the chunk ends mid-sequence, returns the end (drop it).
+fn csi_end(data: &[u8], start: usize) -> usize {
+    let mut j = start.saturating_add(2); // skip ESC and '['
+    while matches!(data.get(j), Some(0x20..=0x3f)) {
+        j = j.saturating_add(1);
+    }
+    // j is at the final byte (or past the chunk); consume through it.
+    j.saturating_add(1)
 }
 
 // Map an entry-select key to a 0-based slot on the current list page: '1'-'9'
@@ -613,8 +628,8 @@ fn render_text(markdown: &str) -> String {
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
     use super::{
-        App, CLEAR, Content, Page, Post, Screen, blog_index_text, digit_offset, dim, nav_keys,
-        page_footer, post_text, render_text, ui,
+        App, CLEAR, Content, Page, Post, Screen, blog_index_text, csi_end, digit_offset, dim,
+        nav_keys, page_footer, post_text, render_text, ui,
     };
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
@@ -676,6 +691,18 @@ mod tests {
             vec![Some('c'), Some('o'), Some('b')],
             "third key is the appended Blog target"
         );
+    }
+
+    #[test]
+    fn csi_end_consumes_whole_sequences() {
+        // Right arrow ESC[C: final byte at index 2, consumed through it.
+        assert_eq!(csi_end(b"\x1b[C", 0), 3);
+        // Delete ESC[3~: one param then '~' final.
+        assert_eq!(csi_end(b"\x1b[3~", 0), 4);
+        // Modified ESC[5;2~: params '5' ';' '2' then '~'.
+        assert_eq!(csi_end(b"\x1b[5;2~", 0), 6);
+        // Truncated (no final byte in the chunk) consumes to the end.
+        assert_eq!(csi_end(b"\x1b[3", 0), 4);
     }
 
     #[test]
