@@ -1,8 +1,9 @@
 //! SSH frontend — serves the site as a minimal TUI over SSH.
 //!
-//! Raw ANSI with single-key navigation: each page is reachable by the first
-//! letter of its nav label, generated from the discovered pages (so adding a
-//! page needs no change here). A ratatui menu is deferred (see issue #2).
+//! Raw ANSI with single-key navigation: each page is reachable by a unique nav
+//! key (the first free letter of its nav label; collisions fall through),
+//! generated from the discovered pages (so adding a page needs no change here).
+//! A ratatui menu is deferred (see issue #2).
 //! Public access: any auth method is accepted.
 
 use std::net::SocketAddr;
@@ -108,7 +109,12 @@ impl Handler for Conn {
                 continue;
             }
             let key = char::from(byte).to_ascii_lowercase();
-            if let Some(page) = self.pages.iter().find(|p| page_key(p) == Some(key)) {
+            let hit = self
+                .pages
+                .iter()
+                .zip(assign_keys(&self.pages))
+                .find_map(|(p, k)| (k == Some(key)).then_some(p));
+            if let Some(page) = hit {
                 session.data(channel, page_screen(page, &self.pages))?;
             }
         }
@@ -116,18 +122,33 @@ impl Handler for Conn {
     }
 }
 
-// The nav key for a page: the first letter of its nav label, lowercased.
-// ponytail: labels sharing a first letter collide (first match wins); the
-// ratatui menu in #2 replaces this with proper selection.
-fn page_key(page: &Page) -> Option<char> {
-    page.nav.chars().next().map(|c| c.to_ascii_lowercase())
+// Assign each page a unique nav key: the first letter of its nav label that
+// isn't already taken, scanning left to right. Collisions (Colophon and
+// Contact both want 'c') fall through to the next free letter, so every page
+// stays reachable. 'q' is pre-reserved for quit. None if all letters are taken.
+fn assign_keys(pages: &[Page]) -> Vec<Option<char>> {
+    let mut used = vec!['q'];
+    pages
+        .iter()
+        .map(|page| {
+            let key = page
+                .nav
+                .chars()
+                .map(|c| c.to_ascii_lowercase())
+                .find(|c| c.is_ascii_alphanumeric() && !used.contains(c));
+            if let Some(k) = key {
+                used.push(k);
+            }
+            key
+        })
+        .collect()
 }
 
 // A footer listing every page's key + label, then quit — generated from pages.
 fn footer(pages: &[Page]) -> String {
     let mut out = String::new();
-    for page in pages {
-        if let Some(key) = page_key(page) {
+    for (page, key) in pages.iter().zip(assign_keys(pages)) {
+        if let Some(key) = key {
             out.push('[');
             out.push(key);
             out.push_str("] ");
@@ -192,6 +213,13 @@ mod tests {
     fn footer_lists_page_keys_then_quit() {
         let pages = vec![page("Home"), page("About")];
         assert_eq!(footer(&pages), "[h] home  [a] about  [q] quit");
+    }
+
+    #[test]
+    fn footer_resolves_first_letter_collisions() {
+        // Colophon takes 'c'; Contact falls through to its next free letter 'o'.
+        let pages = vec![page("Colophon"), page("Contact")];
+        assert_eq!(footer(&pages), "[c] colophon  [o] contact  [q] quit");
     }
 
     #[test]
