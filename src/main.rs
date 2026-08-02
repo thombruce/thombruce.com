@@ -11,9 +11,9 @@ mod view;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Discover pages once at startup; a malformed page fails here, loudly.
-    let pages = Arc::new(content::load().map_err(std::io::Error::other)?);
-    let app = routes::app(&pages);
+    // Discover all content once at startup; a malformed file fails here, loudly.
+    let content = Arc::new(content::load().map_err(std::io::Error::other)?);
+    let app = routes::app(&content);
 
     // Render (and most PaaS) inject the HTTP port via $PORT; fall back for local dev.
     // SSH binds a high port locally (privileged ports need root); a host maps :22 to it.
@@ -24,9 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // shutdown, the process exits and this task is dropped.
     // ponytail: no graceful shutdown for SSH connections yet — add if abrupt
     // disconnects on redeploy become a problem.
-    let ssh_pages = Arc::clone(&pages);
+    let ssh_content = Arc::clone(&content);
     tokio::spawn(async move {
-        if let Err(err) = ssh::serve(ssh_addr, ssh_pages).await {
+        if let Err(err) = ssh::serve(ssh_addr, ssh_content).await {
             eprintln!("ssh server error: {err}");
         }
     });
