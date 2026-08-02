@@ -13,7 +13,7 @@ mod view;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Discover pages once at startup; a malformed page fails here, loudly.
     let pages = Arc::new(content::load().map_err(std::io::Error::other)?);
-    let app = routes::app(pages.as_slice());
+    let app = routes::app(&pages);
 
     // Render (and most PaaS) inject the HTTP port via $PORT; fall back for local dev.
     // SSH binds a high port locally (privileged ports need root); a host maps :22 to it.
