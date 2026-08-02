@@ -107,12 +107,16 @@ pub fn blog_index(posts: &[Post], pages: &[Page]) -> String {
         "Blog",
         &html! {
             h1 { "Blog" }
-            ul {
-                @for post in posts {
-                    li {
-                        a href=(format!("/blog/{}", post.slug)) { (post.title) }
-                        " — "
-                        time datetime=(post.date) { (post.date) }
+            @if posts.is_empty() {
+                p { "Nothing here yet." }
+            } @else {
+                ul {
+                    @for post in posts {
+                        li {
+                            a href=(format!("/blog/{}", post.slug)) { (post.title) }
+                            " — "
+                            time datetime=(post.date) { (post.date) }
+                        }
                     }
                 }
             }

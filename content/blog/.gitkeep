@@ -1,0 +1,2 @@
+# Keeps content/blog/ present so include_dir! compiles with zero posts.
+# The loader ignores non-.md files.

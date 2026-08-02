@@ -566,6 +566,9 @@ fn page_footer(pages: &[Page]) -> String {
 // The blog index body: a header and the current page's 10 numbered entries.
 fn blog_index_text(posts: &[Post], blog_page: usize) -> String {
     use std::fmt::Write as _;
+    if posts.is_empty() {
+        return "Blog\n\nNo posts yet.".to_owned();
+    }
     let total_pages = posts.len().div_ceil(PAGE_SIZE).max(1);
     let start = blog_page.saturating_mul(PAGE_SIZE);
     let mut out = format!(
@@ -584,6 +587,9 @@ fn blog_index_text(posts: &[Post], blog_page: usize) -> String {
 
 // Blog-index footer: entry-open hint, prev/next only when a page exists there.
 fn blog_footer(posts: &[Post], blog_page: usize) -> String {
+    if posts.is_empty() {
+        return "[h] home  [q] quit".to_owned();
+    }
     let mut out = String::from("[1-0] open  ");
     if blog_page > 0 {
         out.push_str("[<] prev  ");
@@ -740,6 +746,18 @@ mod tests {
         assert_eq!(app.blog_page, 0);
         app.prev_blog_page();
         assert_eq!(app.blog_page, 0, "no page before the first");
+    }
+
+    #[test]
+    fn blog_index_empty_state() {
+        let body = blog_index_text(&[], 0);
+        assert!(body.contains("No posts yet"), "empty body message");
+        assert!(!body.contains("page 1/1"), "no page counter when empty");
+        let foot = super::blog_footer(&[], 0);
+        assert_eq!(
+            foot, "[h] home  [q] quit",
+            "no open/paging hints when empty"
+        );
     }
 
     #[test]
