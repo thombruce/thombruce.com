@@ -497,9 +497,9 @@ dependencies = [
 
 [[package]]
 name = "drizzle-css"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed4d60b0684256d81d21a2105cf9b30aa4d4a330cf3f11f046db0a11788d8c5d"
+checksum = "e1fb7f93ab1a1ef9e6cb14ed83f18f304fda969fc103f775bb66c3c953567e6f"
 
 [[package]]
 name = "dunce"
