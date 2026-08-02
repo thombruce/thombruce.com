@@ -51,7 +51,6 @@ Deployment gotchas (all hit in practice):
 - **Scale-to-zero** (`min_machines_running = 0`): a first SSH connection to a cold machine may time out; reconnect wakes it. Set to `1` for always-on.
 - **SSH host key** is loaded from the `SSH_HOST_KEY` secret (an OpenSSH-format private key); set it (`fly secrets set SSH_HOST_KEY="$(cat keyfile)"`) so the fingerprint stays stable across deploys. If unset, `ssh.rs` falls back to an ephemeral key (fine for local dev) — but then a redeploy changes the fingerprint and clients get `REMOTE HOST IDENTIFICATION HAS CHANGED`. Set once; a Fly secret persists across deploys.
 - **`content/` must be in the build context** — page Markdown is embedded from `content/pages/` with `include_dir!` at compile time, so the `Dockerfile` copies `content/` alongside `src/`. A new page appears once its file is committed and the image rebuilt.
-- **Clean builds are slow** — drizzle-css compiles its CSS via lightningcss at build time, dragging a large dependency tree. It's build-time only (no runtime cost) and cached after the first build.
 
 ## Linting
 
