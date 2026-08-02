@@ -9,38 +9,44 @@ use axum::{
     routing::get,
 };
 
-use crate::content::Page;
+use crate::content::Content;
 use crate::handlers::{assets, count, echo};
 use crate::view;
 
-// Build the router: one route per discovered content page (pre-rendered at
-// startup), the stylesheet, two dynamic (per-request) pages, and a 404 fallback.
-// Adding a *content* page needs no edit here — it appears once its file is in
-// content/pages/. The dynamic pages carry their own logic in handlers/; here we
-// just register them, like the stylesheet.
-pub fn app(pages: &Arc<Vec<Page>>) -> Router {
+// Build the router: one route per discovered page and per blog post (all
+// pre-rendered at startup), the /blog index, the stylesheet, two dynamic
+// (per-request) pages, and a 404 fallback. Adding a page or post needs no edit
+// here — it appears once its file is in content/pages/ or content/blog/. The
+// dynamic pages carry their own logic in handlers/; here we just register them.
+pub fn app(content: &Arc<Content>) -> Router {
     let mut router = Router::new();
-    for page in pages.iter() {
-        let html = view::render_page(page, pages.as_slice());
-        router = router.route(
-            &page.path,
-            get(move || {
-                let html = html.clone();
-                async move { Html(html) }
-            }),
-        );
+    for page in &content.pages {
+        let html = view::render_page(page, &content.pages);
+        router = router.route(&page.path, get(serve_html(html)));
+    }
+    for post in &content.posts {
+        let html = view::post_page(post, &content.pages);
+        router = router.route(&format!("/blog/{}", post.slug), get(serve_html(html)));
     }
 
-    let not_found = view::not_found(pages.as_slice());
+    let blog_index = view::blog_index(&content.posts, &content.pages);
+    let not_found = view::not_found(&content.pages);
     router
+        .route("/blog", get(serve_html(blog_index)))
         .route("/style.css", get(assets::stylesheet))
-        .route("/count", count::route(Arc::clone(pages)))
-        .route("/echo", echo::route(Arc::clone(pages)))
+        .route("/count", count::route(Arc::clone(content)))
+        .route("/echo", echo::route(Arc::clone(content)))
         .fallback(move || {
             let html = not_found.clone();
             async move { (StatusCode::NOT_FOUND, Html(html)) }
         })
         .layer(from_fn(www_redirect))
+}
+
+// A handler that serves one pre-rendered HTML string, cloned per request (the
+// router closure is reusable, so it can't move the captured string out).
+fn serve_html(html: String) -> impl Fn() -> std::future::Ready<Html<String>> + Clone {
+    move || std::future::ready(Html(html.clone()))
 }
 
 // Redirect www.* to the apex host, preserving path, so www doesn't dead-end.
@@ -154,6 +160,37 @@ mod tests {
             .get("content-type")
             .and_then(|v| v.to_str().ok());
         assert_eq!(ct, Some("text/css; charset=utf-8"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn blog_index_and_posts_are_served() -> TestResult {
+        // Tolerates an empty blog: the index always 200s; the per-post route is
+        // only checked when there's a post to drive it.
+        let content = crate::content::load()?;
+        let first_slug = content.posts.first().map(|p| p.slug.clone());
+        let app = app(&Arc::new(content));
+
+        let index = app
+            .clone()
+            .oneshot(Request::builder().uri("/blog").body(Body::empty())?)
+            .await?;
+        assert_eq!(index.status(), StatusCode::OK);
+        let body = body_string(index).await?;
+
+        if let Some(slug) = first_slug {
+            assert!(body.contains("/blog/"), "index links posts");
+            let post = app
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/blog/{slug}"))
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(post.status(), StatusCode::OK);
+        } else {
+            assert!(body.contains("Nothing here yet"), "empty-state message");
+        }
         Ok(())
     }
 

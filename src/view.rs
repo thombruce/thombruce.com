@@ -4,14 +4,15 @@
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use pulldown_cmark::{Parser, html::push_html};
 
-use crate::content::Page;
+use crate::content::{Page, Post};
 
-// Nav links, in page order — generated from the discovered pages so adding a
-// page updates the nav everywhere with no edit here.
+// Nav links, in page order — generated from the discovered pages, with the Blog
+// section appended, so adding a page updates the nav everywhere with no edit here.
 fn nav_links(pages: &[Page]) -> Vec<(&str, &str)> {
     pages
         .iter()
         .map(|p| (p.path.as_str(), p.nav.as_str()))
+        .chain(std::iter::once(("/blog", "Blog")))
         .collect()
 }
 
@@ -92,6 +93,48 @@ pub fn echo_page(method: &str, path: &str, headers: &[(String, String)], pages: 
                 @for (name, value) in headers {
                     tr { th { (name) } td { (value) } }
                 }
+            }
+        },
+        &nav_links(pages),
+    )
+    .into_string()
+}
+
+// /blog — the post index, newest first (posts arrive pre-sorted). Each entry
+// links to its /blog/<slug> page.
+pub fn blog_index(posts: &[Post], pages: &[Page]) -> String {
+    shell(
+        "Blog",
+        &html! {
+            h1 { "Blog" }
+            @if posts.is_empty() {
+                p { "Nothing here yet." }
+            } @else {
+                ul {
+                    @for post in posts {
+                        li {
+                            a href=(format!("/blog/{}", post.slug)) { (post.title) }
+                            " — "
+                            time datetime=(post.date) { (post.date) }
+                        }
+                    }
+                }
+            }
+        },
+        &nav_links(pages),
+    )
+    .into_string()
+}
+
+// /blog/<slug> — a single post: title, date, then the rendered Markdown body.
+pub fn post_page(post: &Post, pages: &[Page]) -> String {
+    shell(
+        &post.title,
+        &html! {
+            article {
+                h1 { (post.title) }
+                p { time datetime=(post.date) { (post.date) } }
+                (PreEscaped(markdown(&post.body)))
             }
         },
         &nav_links(pages),
