@@ -1,12 +1,13 @@
 //! SSH frontend — serves the site as a ratatui TUI over SSH.
 //!
-//! A two-pane TUI: a page menu (left) and the selected page's Markdown rendered
-//! to text (right, scrollable). Menu and content derive from the discovered
-//! pages, so adding a page needs no change here. Rendered by ratatui through a
-//! `CrosstermBackend` writing ANSI into a `Vec`, which is flushed down the SSH
-//! channel after every `Terminal::draw`. Terminal size comes from the PTY
-//! request and is kept current by `window_change` (resize) events.
-//! Public access: any auth method is accepted.
+//! A plain scrollable page view with a key-hint footer. Each page is reachable
+//! by a unique nav key (the first free letter of its nav label; collisions fall
+//! through), generated from the discovered pages, so adding a page needs no
+//! change here. Rendered by ratatui through a `CrosstermBackend` writing ANSI
+//! into a `Vec`, flushed down the SSH channel after every `Terminal::draw`;
+//! ratatui buys us scrolling (arrows / space / PageUp-Down) and resize handling.
+//! Terminal size comes from the PTY request and is kept current by
+//! `window_change` (resize) events. Public access: any auth method is accepted.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{Frame, TerminalOptions, Viewport};
 use russh::keys::{PrivateKey, ssh_key};
 use russh::server::ChannelOpenHandle;
@@ -101,24 +102,19 @@ impl App {
         }
     }
 
-    fn select_next(&mut self) {
-        let max = self.count.saturating_sub(1);
-        self.selected = self.selected.saturating_add(1).min(max);
+    // Jump to a page by index (from a nav key), scrolling back to the top.
+    fn goto(&mut self, idx: usize) {
+        self.selected = idx.min(self.count.saturating_sub(1));
         self.scroll = 0;
     }
 
-    const fn select_prev(&mut self) {
-        self.selected = self.selected.saturating_sub(1);
-        self.scroll = 0;
-    }
-
-    fn scroll_page_down(&mut self) {
+    fn scroll_down(&mut self, step: u16) {
         let max = self.content_lines.saturating_sub(self.content_h);
-        self.scroll = self.scroll.saturating_add(self.content_h.max(1)).min(max);
+        self.scroll = self.scroll.saturating_add(step).min(max);
     }
 
-    fn scroll_page_up(&mut self) {
-        self.scroll = self.scroll.saturating_sub(self.content_h.max(1));
+    const fn scroll_up(&mut self, step: u16) {
+        self.scroll = self.scroll.saturating_sub(step);
     }
 }
 
@@ -204,6 +200,8 @@ impl Handler for Conn {
         let mut dirty = false;
         let mut i = 0;
         while let Some(&b) = data.get(i) {
+            // A page's worth of scroll, for space / PageUp / PageDown.
+            let page = self.app.content_h.max(1);
             match b {
                 // q, Q, Ctrl-C, Ctrl-D quit.
                 b'q' | b'Q' | 3 | 4 => {
@@ -212,23 +210,24 @@ impl Handler for Conn {
                     session.close(channel)?;
                     return Ok(());
                 }
-                // Escape sequences: arrows (ESC [ A/B) and PageUp/Down (ESC [ 5~/6~).
+                // Escape sequences: arrows (ESC [ A/B scroll a line) and
+                // PageUp/Down (ESC [ 5~/6~ scroll a page).
                 // ponytail: only whole, exact-shape sequences within one data()
                 // chunk are recognised; a sequence split across TCP reads or a
                 // modified variant (ESC [ 5 ; 2 ~) is dropped. Fine interactively;
                 // add a carry-over buffer for a partial ESC tail if it bites.
                 0x1b if data.get(i.saturating_add(1)) == Some(&b'[') => {
                     match data.get(i.saturating_add(2)) {
-                        Some(b'A') => self.app.select_prev(),
-                        Some(b'B') => self.app.select_next(),
+                        Some(b'A') => self.app.scroll_up(1),
+                        Some(b'B') => self.app.scroll_down(1),
                         Some(b'5') if data.get(i.saturating_add(3)) == Some(&b'~') => {
-                            self.app.scroll_page_up();
+                            self.app.scroll_up(page);
                             i = i.saturating_add(4);
                             dirty = true;
                             continue;
                         }
                         Some(b'6') if data.get(i.saturating_add(3)) == Some(&b'~') => {
-                            self.app.scroll_page_down();
+                            self.app.scroll_down(page);
                             i = i.saturating_add(4);
                             dirty = true;
                             continue;
@@ -242,11 +241,14 @@ impl Handler for Conn {
                     dirty = true;
                     continue;
                 }
-                b'k' => self.app.select_prev(),
-                b'j' => self.app.select_next(),
-                b' ' | b'f' => self.app.scroll_page_down(),
-                b'b' => self.app.scroll_page_up(),
+                // Space pages down; a letter jumps to the page it's the nav key for.
+                b' ' => self.app.scroll_down(page),
                 _ => {
+                    let key = char::from(b).to_ascii_lowercase();
+                    if let Some(idx) = page_key_index(&self.pages, key) {
+                        self.app.goto(idx);
+                        dirty = true;
+                    }
                     i = i.saturating_add(1);
                     continue;
                 }
@@ -316,43 +318,67 @@ fn dim(v: u32) -> u16 {
 fn ui(frame: &mut Frame, app: &mut App, pages: &[Page]) {
     let [body, foot] =
         Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
-    let [menu_area, content_area] =
-        Layout::horizontal([Constraint::Length(20), Constraint::Min(1)]).areas(body);
 
-    let items: Vec<ListItem> = pages.iter().map(|p| ListItem::new(p.nav.clone())).collect();
-    let menu = List::new(items)
-        .block(Block::bordered().title("thombruce.com"))
-        .highlight_symbol("> ")
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-    let mut menu_state = ListState::default().with_selected(Some(app.selected));
-    frame.render_stateful_widget(menu, menu_area, &mut menu_state);
-
-    let page = pages.get(app.selected);
-    let title = page.map(|p| p.title.clone()).unwrap_or_default();
-    let text = page.map(|p| render_text(&p.body)).unwrap_or_default();
-
-    let inner_w = content_area.width.saturating_sub(2);
-    let inner_h = content_area.height.saturating_sub(2);
+    let text = pages
+        .get(app.selected)
+        .map(|p| render_text(&p.body))
+        .unwrap_or_default();
     let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
-    let lines = u16::try_from(paragraph.line_count(inner_w)).unwrap_or(u16::MAX);
+    let lines = u16::try_from(paragraph.line_count(body.width)).unwrap_or(u16::MAX);
 
     // Record layout for the next key event and clamp scroll to the content.
-    app.content_h = inner_h;
+    app.content_h = body.height;
     app.content_lines = lines;
-    app.scroll = app.scroll.min(lines.saturating_sub(inner_h));
+    app.scroll = app.scroll.min(lines.saturating_sub(body.height));
 
+    frame.render_widget(paragraph.scroll((app.scroll, 0)), body);
     frame.render_widget(
-        paragraph
-            .scroll((app.scroll, 0))
-            .block(Block::bordered().title(title)),
-        content_area,
-    );
-
-    frame.render_widget(
-        Paragraph::new("^/v: pages   space/b: scroll   q: quit")
-            .style(Style::default().add_modifier(Modifier::DIM)),
+        Paragraph::new(footer(pages)).style(Style::default().add_modifier(Modifier::DIM)),
         foot,
     );
+}
+
+// The nav key for each page: the first letter of its nav label not already
+// taken, scanning left to right. Collisions (Colophon and Contact both want
+// 'c') fall through to the next free letter, so every page stays reachable.
+// 'q' is pre-reserved for quit. None if all its letters are taken.
+fn assign_keys(pages: &[Page]) -> Vec<Option<char>> {
+    let mut used = vec!['q'];
+    pages
+        .iter()
+        .map(|page| {
+            let key = page
+                .nav
+                .chars()
+                .map(|c| c.to_ascii_lowercase())
+                .find(|c| c.is_ascii_alphanumeric() && !used.contains(c));
+            if let Some(k) = key {
+                used.push(k);
+            }
+            key
+        })
+        .collect()
+}
+
+// Index of the page whose nav key is `key`, if any.
+fn page_key_index(pages: &[Page], key: char) -> Option<usize> {
+    assign_keys(pages).iter().position(|k| *k == Some(key))
+}
+
+// A footer listing every page's key + label, then scroll/quit hints.
+fn footer(pages: &[Page]) -> String {
+    let mut out = String::new();
+    for (page, key) in pages.iter().zip(assign_keys(pages)) {
+        if let Some(key) = key {
+            out.push('[');
+            out.push(key);
+            out.push_str("] ");
+            out.push_str(&page.nav.to_lowercase());
+            out.push_str("  ");
+        }
+    }
+    out.push_str("[space] scroll  [q] quit");
+    out
 }
 
 // Markdown -> plain text. Drops syntax markers; blocks separated by blank
@@ -377,7 +403,7 @@ fn render_text(markdown: &str) -> String {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use super::{App, CLEAR, Page, dim, render_text, ui};
+    use super::{App, CLEAR, Page, dim, footer, page_key_index, render_text, ui};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
@@ -401,24 +427,50 @@ mod tests {
     }
 
     #[test]
-    fn select_clamps_at_both_ends() {
-        let mut app = App::new(2);
-        app.select_prev(); // already at top, stays at 0
-        assert_eq!(app.selected, 0);
-        app.select_next();
-        app.select_next(); // only 2 pages, clamps at index 1
-        assert_eq!(app.selected, 1);
+    fn footer_lists_page_keys_then_hints() {
+        let pages = vec![page("Home", ""), page("About", "")];
+        assert_eq!(
+            footer(&pages),
+            "[h] home  [a] about  [space] scroll  [q] quit"
+        );
     }
 
     #[test]
-    fn scroll_clamps_to_content_and_resets_on_page_change() {
+    fn footer_resolves_first_letter_collisions() {
+        // Colophon takes 'c'; Contact falls through to its next free letter 'o'.
+        let pages = vec![page("Colophon", ""), page("Contact", "")];
+        assert_eq!(
+            footer(&pages),
+            "[c] colophon  [o] contact  [space] scroll  [q] quit"
+        );
+    }
+
+    #[test]
+    fn nav_key_maps_to_its_page_and_goto_clamps() {
+        let pages = vec![page("Home", ""), page("About", "")];
+        assert_eq!(page_key_index(&pages, 'a'), Some(1), "'a' -> About");
+        assert_eq!(page_key_index(&pages, 'z'), None, "unassigned key -> none");
+
+        let mut app = App::new(2);
+        app.scroll = 3;
+        app.goto(1);
+        assert_eq!(app.selected, 1);
+        assert_eq!(app.scroll, 0, "jumping to a page resets scroll");
+        app.goto(9); // out of range
+        assert_eq!(app.selected, 1, "goto clamps to the last page");
+    }
+
+    #[test]
+    fn scroll_clamps_to_content() {
         let mut app = App::new(2);
         app.content_h = 10;
         app.content_lines = 15; // max scroll = 5
-        app.scroll_page_down();
-        assert_eq!(app.scroll, 5, "clamped to content, not a full page (10)");
-        app.select_next();
-        assert_eq!(app.scroll, 0, "changing page resets scroll");
+        app.scroll_down(10);
+        assert_eq!(app.scroll, 5, "clamped to content, not past the end");
+        app.scroll_up(2);
+        assert_eq!(app.scroll, 3);
+        app.scroll_up(99);
+        assert_eq!(app.scroll, 0, "clamped at the top");
     }
 
     #[test]
@@ -475,7 +527,6 @@ mod tests {
 
         let ansi = String::from_utf8_lossy(term.backend_mut().writer_mut());
         assert!(ansi.contains("\x1b[2J"), "clears the client screen");
-        assert!(ansi.contains("thombruce.com"), "menu title rendered");
         assert!(ansi.contains("Welcome"), "page content rendered");
         assert!(ansi.contains("quit"), "footer hint rendered");
         Ok(())
