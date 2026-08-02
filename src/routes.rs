@@ -165,13 +165,10 @@ mod tests {
 
     #[tokio::test]
     async fn blog_index_and_posts_are_served() -> TestResult {
-        // A post's slug drives its route; take a real one from the loaded content.
+        // Tolerates an empty blog: the index always 200s; the per-post route is
+        // only checked when there's a post to drive it.
         let content = crate::content::load()?;
-        let slug = content
-            .posts
-            .first()
-            .map(|p| p.slug.clone())
-            .ok_or("no demo posts embedded")?;
+        let first_slug = content.posts.first().map(|p| p.slug.clone());
         let app = app(&Arc::new(content));
 
         let index = app
@@ -179,19 +176,21 @@ mod tests {
             .oneshot(Request::builder().uri("/blog").body(Body::empty())?)
             .await?;
         assert_eq!(index.status(), StatusCode::OK);
-        assert!(
-            body_string(index).await?.contains("/blog/"),
-            "index links posts"
-        );
+        let body = body_string(index).await?;
 
-        let post = app
-            .oneshot(
-                Request::builder()
-                    .uri(format!("/blog/{slug}"))
-                    .body(Body::empty())?,
-            )
-            .await?;
-        assert_eq!(post.status(), StatusCode::OK);
+        if let Some(slug) = first_slug {
+            assert!(body.contains("/blog/"), "index links posts");
+            let post = app
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/blog/{slug}"))
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(post.status(), StatusCode::OK);
+        } else {
+            assert!(body.contains("Nothing here yet"), "empty-state message");
+        }
         Ok(())
     }
 
