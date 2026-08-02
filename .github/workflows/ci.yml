@@ -3,6 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
+    # Skip check + deploy for docs-only pushes to main. Listed by name, NOT
+    # `**.md` — content pages live in content/ as Markdown embedded in the
+    # binary, so a content addition MUST still deploy. PRs (below) have no
+    # filter, so their checks always run; merge behavior is unaffected.
+    paths-ignore:
+      - 'CLAUDE.md'
+      - 'README.md'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
 
 jobs:
