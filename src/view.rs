@@ -1,3 +1,6 @@
+// ponytail: all HTML views share this file. Fine at this size; split into a
+// view/ submodule (or co-locate per-page views with their handlers) if it grows
+// unwieldy — trigger and options tracked in issue #8.
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use pulldown_cmark::{Parser, html::push_html};
 
