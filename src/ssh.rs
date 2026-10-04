@@ -89,7 +89,8 @@ struct Conn {
 const PAGE_SIZE: usize = 10;
 
 // Which screen the session is showing, as an index into content.docs /
-// content.listings; a listing's current page is App.list_page.
+// content.listings; a listing's current page is App.list_page, which belongs
+// to listing App.list_of.
 #[derive(Clone, Copy)]
 enum Screen {
     Doc(usize),
@@ -103,6 +104,7 @@ struct App {
     screen: Screen,
     home: usize,
     list_page: usize,
+    list_of: usize,
     scroll: u16,
     content_h: u16,
     content_lines: u16,
@@ -114,6 +116,7 @@ impl App {
             screen: Screen::Doc(home),
             home,
             list_page: 0,
+            list_of: 0,
             scroll: 0,
             content_h: 0,
             content_lines: 0,
@@ -126,14 +129,21 @@ impl App {
             Target::Doc(idx) => Screen::Doc(idx),
             Target::Listing(idx) => {
                 self.list_page = 0;
+                self.list_of = idx;
                 Screen::Listing(idx)
             }
         };
         self.scroll = 0;
     }
 
-    // Return from a doc to its listing, keeping the list page we came from.
+    // Return from a doc to its listing, keeping the list page we came from —
+    // unless that page belonged to a different listing (the doc was reached
+    // some other way, e.g. by nav key), in which case start at its first page.
     const fn back_to_listing(&mut self, idx: usize) {
+        if self.list_of != idx {
+            self.list_page = 0;
+            self.list_of = idx;
+        }
         self.screen = Screen::Listing(idx);
         self.scroll = 0;
     }
@@ -784,6 +794,11 @@ mod tests {
         assert_eq!(app.scroll, 0);
         app.back_to_listing(1);
         assert_eq!(app.list_page, 1, "back keeps the page we came from");
+
+        // Back into a different listing than the page belonged to: first page.
+        app.back_to_listing(2);
+        assert!(matches!(app.screen, Screen::Listing(2)));
+        assert_eq!(app.list_page, 0, "stale page from another listing reset");
 
         app.go_home();
         assert!(matches!(app.screen, Screen::Doc(0)));

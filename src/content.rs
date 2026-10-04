@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 use include_dir::{Dir, include_dir};
+use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
 static CONTENT: Dir = include_dir!("$CARGO_MANIFEST_DIR/content");
 
@@ -128,7 +129,6 @@ impl Loader {
                 .contents_utf8()
                 .ok_or_else(|| format!("{source}: not valid UTF-8"))?;
             let (meta, body) = parse(raw).map_err(|e| format!("{source}: {e}"))?;
-            let title = title(&meta, body, name);
 
             // A subdirectory's index.md describes its listing rather than
             // being a doc of its own.
@@ -140,11 +140,13 @@ impl Loader {
                     .listings
                     .get_mut(idx)
                     .ok_or("listing index out of range")?;
-                l.title = title;
-                body.clone_into(&mut l.intro);
+                // Untitled index.md keeps the directory name, not "index".
+                l.title = title(&meta, &body, &l.title);
+                l.intro = body;
                 continue;
             }
 
+            let title = title(&meta, &body, name);
             let path = if name == "index" {
                 "/".to_owned()
             } else {
@@ -164,7 +166,7 @@ impl Loader {
                 path,
                 title,
                 meta,
-                body: body.to_owned(),
+                body,
                 parent: listing,
             });
         }
@@ -277,32 +279,54 @@ fn is_valid_slug(slug: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-// `title` frontmatter, else the body's first `# heading`, else the filename.
-fn title(meta: &BTreeMap<String, String>, body: &str, name: &str) -> String {
+// `title` frontmatter, else the body's first H1 heading, else `fallback`.
+// The heading is found by the Markdown parser, so a `# comment` in a code
+// fence isn't mistaken for it.
+fn title(meta: &BTreeMap<String, String>, body: &str, fallback: &str) -> String {
     meta.get("title")
         .cloned()
-        .or_else(|| {
-            body.lines()
-                .find_map(|l| l.strip_prefix("# "))
-                .map(|t| t.trim().to_owned())
-        })
-        .unwrap_or_else(|| name.to_owned())
+        .or_else(|| first_h1(body))
+        .unwrap_or_else(|| fallback.to_owned())
 }
 
-// Split optional `---\n…\n---\n` frontmatter (flat `key: value` lines) from
-// the Markdown body. No opening delimiter → no frontmatter, all body.
+fn first_h1(body: &str) -> Option<String> {
+    let mut events = Parser::new(body);
+    events.find(|e| {
+        matches!(
+            e,
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H1,
+                ..
+            })
+        )
+    })?;
+    let text: String = events
+        .take_while(|e| !matches!(e, Event::End(TagEnd::Heading(_))))
+        .filter_map(|e| match e {
+            Event::Text(t) | Event::Code(t) => Some(t.into_string()),
+            _ => None,
+        })
+        .collect();
+    Some(text.trim().to_owned()).filter(|t| !t.is_empty())
+}
+
+// Split optional `---` frontmatter (flat `key: value` lines) from the
+// Markdown body. No opening delimiter → no frontmatter, all body. CRLF is
+// normalized; the closing `---` may be the last line, with no newline after.
 // ponytail: flat key/value only; switch to a YAML parser when lists/nesting
 // (e.g. tags) are needed.
-fn parse(raw: &str) -> Result<(BTreeMap<String, String>, &str), String> {
+fn parse(raw: &str) -> Result<(BTreeMap<String, String>, String), String> {
+    let raw = raw.replace("\r\n", "\n");
     let mut meta = BTreeMap::new();
     let Some(after) = raw.strip_prefix("---\n") else {
         return Ok((meta, raw));
     };
-    let (frontmatter, body) = after
-        .split_once("\n---\n")
-        .ok_or("missing closing frontmatter delimiter (---)")?;
-    for line in frontmatter.lines() {
+    let mut lines = after.split_inclusive('\n');
+    for line in lines.by_ref() {
         let line = line.trim();
+        if line == "---" {
+            return Ok((meta, lines.collect()));
+        }
         if line.is_empty() {
             continue;
         }
@@ -311,7 +335,7 @@ fn parse(raw: &str) -> Result<(BTreeMap<String, String>, &str), String> {
             .ok_or_else(|| format!("frontmatter line is not `key: value`: {line}"))?;
         meta.insert(key.trim().to_owned(), value.trim().to_owned());
     }
-    Ok((meta, body))
+    Err("missing closing frontmatter delimiter (---)".to_owned())
 }
 
 #[cfg(test)]
@@ -352,6 +376,32 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn frontmatter_edge_cases() -> Result<(), String> {
+        let (meta, body) = parse("---\ntitle: Blog\n---")?;
+        assert_eq!(
+            meta.get("title").map(String::as_str),
+            Some("Blog"),
+            "no final newline"
+        );
+        assert_eq!(body, "");
+        let (meta, body) = parse("---\n---\nBody\n")?;
+        assert!(meta.is_empty(), "empty frontmatter");
+        assert_eq!(body, "Body\n");
+        let (meta, body) = parse("---\r\ntitle: Win\r\n---\r\nBody\r\n")?;
+        assert_eq!(meta.get("title").map(String::as_str), Some("Win"), "CRLF");
+        assert_eq!(body, "Body\n");
+        Ok(())
+    }
+
+    #[test]
+    fn title_ignores_code_fences() {
+        let meta = std::collections::BTreeMap::new();
+        let body = "```sh\n# install deps\n```\n\n# Real *Title*\n";
+        assert_eq!(super::title(&meta, body, "file"), "Real Title");
+        assert_eq!(super::title(&meta, "No heading.", "file"), "file");
+    }
+
     static TREE: Dir = Dir::new(
         "",
         &[
@@ -376,6 +426,8 @@ mod tests {
             DirEntry::Dir(Dir::new(
                 "code",
                 &[
+                    // Untitled, and no final newline after the closing ---.
+                    DirEntry::File(File::new("code/index.md", b"---\norder: 9\n---")),
                     DirEntry::File(File::new("code/zeta.md", b"z")),
                     DirEntry::File(File::new("code/inkpot.md", b"# Inkpot\n")),
                 ],
@@ -423,7 +475,10 @@ mod tests {
             .iter()
             .find(|l| l.path == "/code")
             .ok_or("no /code")?;
-        assert_eq!(code.title, "code", "no index.md: titled by directory name");
+        assert_eq!(
+            code.title, "code",
+            "untitled index.md: titled by directory name"
+        );
         let titles: Vec<&str> = code.entries.iter().map(|e| e.title.as_str()).collect();
         assert_eq!(
             titles,
