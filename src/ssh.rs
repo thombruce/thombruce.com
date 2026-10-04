@@ -22,6 +22,7 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Text};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{Frame, TerminalOptions, Viewport};
 use russh::keys::{PrivateKey, ssh_key};
@@ -29,7 +30,7 @@ use russh::server::ChannelOpenHandle;
 use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::{Channel, ChannelId, Pty};
 
-use crate::content::{Content, Doc, Listing, NavLink, Target};
+use crate::content::{Content, Doc, Listing, NavLink, Target, strip_leading_h1};
 
 // Clear the screen and home the cursor (erase display, cursor to top-left).
 const CLEAR: &[u8] = b"\x1b[2J\x1b[H";
@@ -461,7 +462,7 @@ fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
     // Body text and footer both depend on which screen we're on.
     let (text, foot_text) = match app.screen {
         Screen::Doc(idx) => content.docs.get(idx).map_or_else(
-            || (String::new(), nav_footer(&content.nav)),
+            || (Text::default(), nav_footer(&content.nav)),
             |doc| (doc_text(doc), doc_footer(doc, content)),
         ),
         Screen::Listing(idx) => content
@@ -469,7 +470,7 @@ fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
             .get(idx)
             .map(|l| {
                 (
-                    listing_text(l, app.list_page),
+                    Text::from(listing_text(l, app.list_page)),
                     listing_footer(l, app.list_page),
                 )
             })
@@ -621,13 +622,47 @@ fn listing_footer(listing: &Listing, list_page: usize) -> String {
     out
 }
 
-// A doc rendered for the terminal: its date (if any), then the body as text.
-fn doc_text(doc: &Doc) -> String {
+// A doc rendered for the terminal: by the text version of its template if
+// there is one, else generically. Text versions share the HTML templates'
+// names (see view.rs), so `layout: post` selects both; one without a text
+// version falls back here rather than breaking SSH.
+// ponytail: no listing text templates yet — add a table like this one when
+// the first index template needs a terminal version.
+fn doc_text(doc: &Doc) -> Text<'static> {
+    TEXT_TEMPLATES
+        .iter()
+        .find(|(name, _)| Some(*name) == doc.layout.as_deref())
+        .map_or_else(|| default_doc_text(doc), |(_, template)| template(doc))
+}
+
+type TextTemplate = fn(&Doc) -> Text<'static>;
+const TEXT_TEMPLATES: [(&str, TextTemplate); 1] = [("post", post_text)];
+
+// Generic: the date (if any), then the body as text.
+fn default_doc_text(doc: &Doc) -> Text<'static> {
     let body = render_text(&doc.body);
-    match doc.date() {
+    Text::from(match doc.date() {
         Some(date) => format!("{date}\n\n{body}"),
         None => body,
+    })
+}
+
+// `post`: bold title, dimmed date, then the body (leading H1 dropped, as on
+// the web, so the title isn't repeated).
+fn post_text(doc: &Doc) -> Text<'static> {
+    let mut lines = vec![Line::styled(
+        doc.title.clone(),
+        Style::default().add_modifier(Modifier::BOLD),
+    )];
+    if let Some(date) = doc.date() {
+        lines.push(Line::styled(
+            date.to_owned(),
+            Style::default().add_modifier(Modifier::DIM),
+        ));
     }
+    lines.push(Line::default());
+    lines.extend(Text::from(render_text(&strip_leading_h1(&doc.body))).lines);
+    Text::from(lines)
 }
 
 // Markdown -> plain text. Drops syntax markers; blocks separated by blank
@@ -670,6 +705,7 @@ mod tests {
                 .collect(),
             body: body.to_owned(),
             parent,
+            layout: None,
         }
     }
 
@@ -700,6 +736,7 @@ mod tests {
                 })
                 .collect(),
             parent,
+            layout: None,
         }
     }
 
@@ -878,11 +915,46 @@ mod tests {
         );
     }
 
+    // Text content, one string per line (styles dropped).
+    fn plain(text: &ratatui::text::Text) -> Vec<String> {
+        text.lines
+            .iter()
+            .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
+            .collect()
+    }
+
     #[test]
     fn doc_text_shows_date_when_present() {
         let dated = doc_text(&doc("Hello", "Body.", Some("2025-06-01"), None));
-        assert!(dated.starts_with("2025-06-01\n\nBody."), "{dated}");
-        assert_eq!(doc_text(&doc("Hello", "Body.", None, None)), "Body.");
+        assert_eq!(plain(&dated), ["2025-06-01", "", "Body."]);
+        assert_eq!(
+            plain(&doc_text(&doc("Hello", "Body.", None, None))),
+            ["Body."]
+        );
+    }
+
+    #[test]
+    fn post_text_template_styles_title_without_repeating_it() {
+        let mut post = doc("Hello", "# Hello\n\nBody.", Some("2025-06-01"), None);
+        post.layout = Some("post".to_owned());
+        let text = doc_text(&post);
+        assert_eq!(plain(&text), ["Hello", "2025-06-01", "", "Body."]);
+        let title_style = text.lines.first().map(|l| l.style);
+        assert!(
+            title_style.is_some_and(|s| s.add_modifier.contains(ratatui::style::Modifier::BOLD)),
+            "title is bold"
+        );
+    }
+
+    #[test]
+    fn text_templates_name_real_layouts() {
+        let layouts = crate::view::doc_layouts();
+        for (name, _) in super::TEXT_TEMPLATES {
+            assert!(
+                layouts.contains(&name),
+                "SSH template {name} has no HTML template"
+            );
+        }
     }
 
     #[test]

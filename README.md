@@ -65,6 +65,7 @@ order: 3
 | `date`  | Shown on the page and in listings. A listing sorts newest-first when every entry has one. Use ISO dates (`2026-10-04`).                      |
 | `nav`   | Adds the page (or, in a directory's `index.md`, the listing) to the site nav with this label.                                               |
 | `order` | Position in the nav, lowest first (default `0`).                                                                                             |
+| `layout` | Template for this page only; see [Templates](#templates).                                                                                  |
 
 Any other key is accepted and kept with the page, unless a schema says otherwise.
 
@@ -87,13 +88,43 @@ strict: true
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `required` | Comma-separated frontmatter keys every page must have. A missing key is a startup error naming the file.                                                       |
 | `sort`     | Key to sort the listing by; prefix `-` for descending. Numbers sort numerically; entries without the key go last. `title` uses the displayed title.            |
-| `strict`   | `true` rejects any key other than `required` ones and the built-ins (`title`, `date`, `nav`, `order`), catching typos.                                          |
+| `strict`   | `true` rejects any key other than `required` ones and the built-ins (`title`, `date`, `nav`, `order`, `layout`), catching typos.                                          |
 
 **Rules are inherited, key by key.** A subdirectory inherits each rule from the nearest directory above it that sets it, and overrides only what it sets itself. To switch a rule off, set it explicitly: `required:` (empty), `strict: false`, or `sort:` (empty, meaning sort by filename).
 
 **Rules in `content/index.md` apply site-wide.** The home page's frontmatter doubles as site config, so `strict: true` there makes the whole site strict.
 
 Schema keys only work in an `index.md`; anywhere else they're an error. `index.md` files aren't checked against the schema themselves.
+
+### Templates
+
+Pages render through a built-in template unless they pick another by name:
+
+| Key                    | Where             | Applies to                                    |
+| ---------------------- | ----------------- | --------------------------------------------- |
+| `layout`               | any file          | this page only                                |
+| `default_layout`       | a folder's `index.md` | pages in that folder and below, inherited  |
+| `default_index_layout` | a folder's `index.md` | listings in that folder and below, inherited |
+
+A page uses its own `layout` if it has one, else the nearest default, else the built-in. An empty value means the built-in template. The home page (`content/index.md`) is a page, not a listing, so a `layout` there affects only the home page. Defaults set in the root apply site-wide. For example (these template names are illustrative; the table below lists the ones that exist):
+
+```markdown
+---
+layout: home                 # the home page only
+default_layout: page         # every page on the site
+default_index_layout: list   # every listing on the site
+---
+```
+
+Available templates:
+
+| Name   | Kind | Renders                                                                                   |
+| ------ | ---- | ----------------------------------------------------------------------------------------- |
+| `post` | page | Title, a date byline under it, then the body (a leading `# heading` isn't repeated). |
+
+The blog uses `default_layout: post`. An unknown template name, or a page template used for a listing, stops the server at startup with an error naming the file.
+
+Templates are Rust functions (`DOC_TEMPLATES`/`INDEX_TEMPLATES` in `src/view.rs`). A template can also have a terminal version under the same name (`TEXT_TEMPLATES` in `src/ssh.rs`); without one, SSH shows the page generically.
 
 ### Dynamic routes
 
