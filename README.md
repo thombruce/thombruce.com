@@ -121,10 +121,12 @@ Available templates:
 | Name   | Kind | Renders                                                                                   |
 | ------ | ---- | ----------------------------------------------------------------------------------------- |
 | `post` | page | Title, a date byline under it, then the body (a leading `# heading` isn't repeated). |
+| `project` | page | Title, then its `language` and a link to its GitHub `repo` (`owner/name`), then the body. |
+| `projects` | listing | Each entry as a section: title, language and repo link, and its first paragraph as a summary. |
 
-The blog uses `default_layout: post`. An unknown template name, or a page template used for a listing, stops the server at startup with an error naming the file.
+The blog uses `default_layout: post`. The code section sets `default_layout: project` and `default_index_layout: projects`, which its Flexi subfolder inherits; the Colophon picks `layout: project` for itself. An unknown template name, or a page template used for a listing, stops the server at startup with an error naming the file.
 
-Templates are Rust functions (`DOC_TEMPLATES`/`INDEX_TEMPLATES` in `src/view.rs`). A template can also have a terminal version under the same name (`TEXT_TEMPLATES` in `src/ssh.rs`); without one, SSH shows the page generically.
+Templates are Rust functions (`DOC_TEMPLATES`/`INDEX_TEMPLATES` in `src/view.rs`). A template can also have a terminal version under the same name (`TEXT_TEMPLATES` in `src/ssh.rs`); without one, SSH shows the page generically. Over SSH a listing keeps its numbered entries, so a listing template's terminal version (`LISTING_TEXT_TEMPLATES`) adds detail lines under each entry instead.
 
 ### Dynamic routes
 

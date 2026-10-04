@@ -5,6 +5,8 @@ order: 5
 required: title, repo, language
 sort: title
 strict: true
+default_layout: project
+default_index_layout: projects
 ---
 # Code
 

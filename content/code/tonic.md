@@ -22,5 +22,3 @@ cargo install git-tonic
 # then, in ~/.zshrc or ~/.bashrc
 eval "$(tonic shell-init zsh)"
 ```
-
-Source: [thombruce/tonic](https://github.com/thombruce/tonic)

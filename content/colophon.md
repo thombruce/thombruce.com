@@ -2,6 +2,9 @@
 title: Colophon
 nav: Colophon
 order: 2
+layout: project
+repo: thombruce/thombruce.com
+language: Rust
 ---
 # Colophon
 

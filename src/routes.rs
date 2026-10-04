@@ -45,7 +45,7 @@ pub fn app(content: &Arc<Content>) -> Router {
         router = router.route(&doc.path, get(serve_html(view::doc_page(doc, nav))));
     }
     for listing in &content.listings {
-        let html = view::listing_page(listing, nav);
+        let html = view::listing_page(listing, content);
         router = router.route(&listing.path, get(serve_html(html)));
     }
 
@@ -225,6 +225,19 @@ mod tests {
             "{body}"
         );
         assert_eq!(body.matches("<h1>").count(), 1, "title not repeated");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn projects_listing_shows_repo_and_summary() -> TestResult {
+        // content/code/index.md sets `default_index_layout: projects`.
+        let req = Request::builder().uri("/code").body(Body::empty())?;
+        let body = body_string(test_app()?.oneshot(req).await?).await?;
+        assert!(
+            body.contains(r#"<h2><a href="/code/tonic">Tonic</a></h2><p>Rust · <a href="https://github.com/thombruce/tonic">"#),
+            "{body}"
+        );
+        assert!(body.contains("A git worktree companion"), "summary shown");
         Ok(())
     }
 

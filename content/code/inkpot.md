@@ -30,5 +30,3 @@ From one source it generates:
 The desktop app adds a timeline, character cards, and a map that follows your cast through the story.
 
 Plain text, git-friendly, no lock-in.
-
-Source: [thombruce/inkpot](https://github.com/thombruce/inkpot)

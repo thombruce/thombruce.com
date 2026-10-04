@@ -30,7 +30,7 @@ use russh::server::ChannelOpenHandle;
 use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::{Channel, ChannelId, Pty};
 
-use crate::content::{Content, Doc, Listing, NavLink, Target, strip_leading_h1};
+use crate::content::{Content, Doc, Entry, Listing, NavLink, Target, strip_leading_h1};
 
 // Clear the screen and home the cursor (erase display, cursor to top-left).
 const CLEAR: &[u8] = b"\x1b[2J\x1b[H";
@@ -470,7 +470,7 @@ fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
             .get(idx)
             .map(|l| {
                 (
-                    Text::from(listing_text(l, app.list_page)),
+                    Text::from(listing_text(l, app.list_page, content)),
                     listing_footer(l, app.list_page),
                 )
             })
@@ -567,8 +567,36 @@ fn doc_footer(doc: &Doc, content: &Content) -> String {
 
 // A listing's body: its intro (or title), then the current page's numbered
 // entries, with a page counter when there's more than one page.
-fn listing_text(listing: &Listing, list_page: usize) -> String {
+// A listing's text version can't replace the screen (its numbered slots are
+// what the digit keys select), so a listing template adds detail lines under
+// each entry instead. Same names as the HTML index templates (view.rs); a
+// listing without one shows bare entries.
+type EntryDetail = fn(&Entry, &Content) -> Vec<String>;
+const LISTING_TEXT_TEMPLATES: [(&str, EntryDetail); 1] = [("projects", project_detail)];
+
+// `projects`: the entry's language and repo (for docs), then its summary.
+fn project_detail(entry: &Entry, content: &Content) -> Vec<String> {
+    let details = content.doc_meta(entry.target).map(|meta| {
+        [meta.get("language"), meta.get("repo")]
+            .into_iter()
+            .flatten()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join(" · ")
+    });
+    details
+        .filter(|d| !d.is_empty())
+        .into_iter()
+        .chain(content.summary(entry.target))
+        .collect()
+}
+
+fn listing_text(listing: &Listing, list_page: usize, content: &Content) -> String {
     use std::fmt::Write as _;
+    let detail = LISTING_TEXT_TEMPLATES
+        .iter()
+        .find(|(name, _)| Some(*name) == listing.layout.as_deref())
+        .map(|(_, f)| *f);
     let mut out = if listing.intro.trim().is_empty() {
         listing.title.clone()
     } else {
@@ -599,6 +627,9 @@ fn listing_text(listing: &Listing, list_page: usize) -> String {
             let _ = write!(out, "  ({date})");
         }
         out.push('\n');
+        for line in detail.map(|f| f(entry, content)).unwrap_or_default() {
+            let _ = writeln!(out, "     {line}");
+        }
     }
     out
 }
@@ -626,8 +657,7 @@ fn listing_footer(listing: &Listing, list_page: usize) -> String {
 // there is one, else generically. Text versions share the HTML templates'
 // names (see view.rs), so `layout: post` selects both; one without a text
 // version falls back here rather than breaking SSH.
-// ponytail: no listing text templates yet — add a table like this one when
-// the first index template needs a terminal version.
+// (Listings work differently: see LISTING_TEXT_TEMPLATES.)
 fn doc_text(doc: &Doc) -> Text<'static> {
     TEXT_TEMPLATES
         .iter()
@@ -636,7 +666,7 @@ fn doc_text(doc: &Doc) -> Text<'static> {
 }
 
 type TextTemplate = fn(&Doc) -> Text<'static>;
-const TEXT_TEMPLATES: [(&str, TextTemplate); 1] = [("post", post_text)];
+const TEXT_TEMPLATES: [(&str, TextTemplate); 2] = [("post", post_text), ("project", project_text)];
 
 // Generic: the date (if any), then the body as text.
 fn default_doc_text(doc: &Doc) -> Text<'static> {
@@ -657,6 +687,29 @@ fn post_text(doc: &Doc) -> Text<'static> {
     if let Some(date) = doc.date() {
         lines.push(Line::styled(
             date.to_owned(),
+            Style::default().add_modifier(Modifier::DIM),
+        ));
+    }
+    lines.push(Line::default());
+    lines.extend(Text::from(render_text(&strip_leading_h1(&doc.body))).lines);
+    Text::from(lines)
+}
+
+// `project`: bold title, dimmed "language · repo", then the body (leading
+// H1 dropped).
+fn project_text(doc: &Doc) -> Text<'static> {
+    let mut lines = vec![Line::styled(
+        doc.title.clone(),
+        Style::default().add_modifier(Modifier::BOLD),
+    )];
+    let details: Vec<&str> = [doc.meta.get("language"), doc.meta.get("repo")]
+        .into_iter()
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    if !details.is_empty() {
+        lines.push(Line::styled(
+            details.join(" · "),
             Style::default().add_modifier(Modifier::DIM),
         ));
     }
@@ -858,7 +911,7 @@ mod tests {
     #[test]
     fn listing_empty_state() {
         let empty = listing(0, None);
-        let body = listing_text(&empty, 0);
+        let body = listing_text(&empty, 0, &content());
         assert!(body.contains("Nothing here yet"), "empty body message");
         assert!(!body.contains("Page 1"), "no page counter when empty");
         assert_eq!(
@@ -872,7 +925,7 @@ mod tests {
     #[test]
     fn listing_numbers_current_page() {
         let l = listing(12, None);
-        let page0 = listing_text(&l, 0);
+        let page0 = listing_text(&l, 0, &content());
         assert!(page0.starts_with("Blog"), "titled when there's no intro");
         assert!(page0.contains("Page 1/2"), "header shows position");
         assert!(
@@ -882,7 +935,7 @@ mod tests {
         assert!(page0.contains("0. Post 9"), "tenth slot is 0");
         assert!(!page0.contains("Post 10"), "page 1 stops at ten entries");
 
-        let page1 = listing_text(&l, 1);
+        let page1 = listing_text(&l, 1, &content());
         assert!(page1.contains("Page 2/2"));
         assert!(
             page1.contains("1. Post 10"),
@@ -955,6 +1008,51 @@ mod tests {
                 "SSH template {name} has no HTML template"
             );
         }
+        let index_layouts = crate::view::index_layouts();
+        for (name, _) in super::LISTING_TEXT_TEMPLATES {
+            assert!(
+                index_layouts.contains(&name),
+                "SSH listing template {name} has no HTML template"
+            );
+        }
+    }
+
+    #[test]
+    fn project_templates_show_language_repo_and_summary() {
+        let mut c = content();
+        let mut project = doc("Tonic", "# Tonic\n\nA worktree companion.", None, None);
+        project.layout = Some("project".to_owned());
+        project
+            .meta
+            .insert("language".to_owned(), "Rust".to_owned());
+        project
+            .meta
+            .insert("repo".to_owned(), "thombruce/tonic".to_owned());
+        assert_eq!(
+            plain(&doc_text(&project)),
+            [
+                "Tonic",
+                "Rust · thombruce/tonic",
+                "",
+                "A worktree companion."
+            ]
+        );
+
+        // A one-entry `projects` listing pointing at that doc.
+        c.docs.push(project);
+        let mut l = listing(0, None);
+        l.layout = Some("projects".to_owned());
+        l.entries.push(Entry {
+            title: "Tonic".to_owned(),
+            path: "/code/tonic".to_owned(),
+            date: None,
+            target: Target::Doc(c.docs.len().saturating_sub(1)),
+        });
+        let text = listing_text(&l, 0, &c);
+        assert!(
+            text.contains("1. Tonic\n     Rust · thombruce/tonic\n     A worktree companion."),
+            "{text}"
+        );
     }
 
     #[test]
