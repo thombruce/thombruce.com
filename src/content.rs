@@ -110,6 +110,26 @@ pub struct Registry {
     pub index_layouts: Vec<&'static str>,
 }
 
+impl Content {
+    // The first paragraph of what an entry opens (a doc's body, a listing's
+    // intro) as plain text, for summaries in listings.
+    pub fn summary(&self, target: Target) -> Option<String> {
+        let body = match target {
+            Target::Doc(idx) => &self.docs.get(idx)?.body,
+            Target::Listing(idx) => &self.listings.get(idx)?.intro,
+        };
+        first_paragraph(body)
+    }
+
+    // The frontmatter of the doc an entry opens; None for a listing.
+    pub fn doc_meta(&self, target: Target) -> Option<&BTreeMap<String, String>> {
+        match target {
+            Target::Doc(idx) => self.docs.get(idx).map(|d| &d.meta),
+            Target::Listing(_) => None,
+        }
+    }
+}
+
 pub fn load(registry: Registry) -> Result<Content, String> {
     load_from(&CONTENT, registry)
 }
@@ -629,6 +649,23 @@ fn first_h1(body: &str) -> Option<String> {
     Some(text.trim().to_owned()).filter(|t| !t.is_empty())
 }
 
+// The first paragraph after any leading H1, as plain text (markup dropped,
+// line breaks as spaces); None if there's no paragraph.
+fn first_paragraph(body: &str) -> Option<String> {
+    let body = strip_leading_h1(body);
+    let mut events = Parser::new(&body);
+    events.find(|e| matches!(e, Event::Start(Tag::Paragraph)))?;
+    let text: String = events
+        .take_while(|e| !matches!(e, Event::End(TagEnd::Paragraph)))
+        .filter_map(|e| match e {
+            Event::Text(t) | Event::Code(t) => Some(t.into_string()),
+            Event::SoftBreak | Event::HardBreak => Some(" ".to_owned()),
+            _ => None,
+        })
+        .collect();
+    Some(text.trim().to_owned()).filter(|t| !t.is_empty())
+}
+
 // The body without its leading H1, for templates that render the title
 // themselves (so it isn't repeated). Unchanged if the body doesn't open with
 // an H1. The range of a heading's Start event spans just the heading, so only
@@ -683,8 +720,8 @@ fn parse(raw: &str) -> Result<(BTreeMap<String, String>, String), String> {
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
     use super::{
-        Registry, Schema, Target, compare_values, is_valid_slug, load, load_from, parse,
-        strip_leading_h1,
+        Registry, Schema, Target, compare_values, first_paragraph, is_valid_slug, load, load_from,
+        parse, strip_leading_h1,
     };
     use include_dir::{Dir, DirEntry, File};
     use std::collections::BTreeMap;
@@ -1194,6 +1231,15 @@ mod tests {
         let kept = strip_leading_h1("[src]: https://x.com\n\n# Title\n\nSee [src].\n");
         assert!(!kept.contains("# Title"), "{kept}");
         assert!(kept.contains("[src]: https://x.com"), "{kept}");
+    }
+
+    #[test]
+    fn first_paragraph_skips_the_title_and_drops_markup() {
+        assert_eq!(
+            first_paragraph("# Tonic\n\nA git *worktree*\ncompanion: `git`.\n\nMore.\n").as_deref(),
+            Some("A git worktree companion: git.")
+        );
+        assert_eq!(first_paragraph("# Only a title\n"), None);
     }
 
     #[test]
