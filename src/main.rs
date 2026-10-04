@@ -12,7 +12,8 @@ mod view;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Discover all content once at startup; a malformed file fails here, loudly.
-    let content = Arc::new(content::load().map_err(std::io::Error::other)?);
+    // Content at a path registered in code is skipped (with a warning).
+    let content = Arc::new(content::load(&routes::reserved()).map_err(std::io::Error::other)?);
     let app = routes::app(&content);
 
     // Render (and most PaaS) inject the HTTP port via $PORT; fall back for local dev.

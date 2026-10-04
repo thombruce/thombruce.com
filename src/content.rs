@@ -88,12 +88,17 @@ pub struct Content {
     pub home: Option<usize>,
 }
 
-pub fn load() -> Result<Content, String> {
-    load_from(&CONTENT)
+// Load all content. `reserved` are paths registered in code (dynamic routes),
+// which take precedence: content at one of them is skipped with a warning.
+pub fn load(reserved: &[&str]) -> Result<Content, String> {
+    load_from(&CONTENT, reserved)
 }
 
-fn load_from(root: &Dir) -> Result<Content, String> {
-    let mut loader = Loader::default();
+fn load_from(root: &Dir, reserved: &[&str]) -> Result<Content, String> {
+    let mut loader = Loader {
+        reserved: reserved.iter().map(|&p| p.to_owned()).collect(),
+        ..Loader::default()
+    };
     loader.walk(root, "", None, &Schema::default())?;
     let Loader {
         docs,
@@ -111,12 +116,16 @@ fn load_from(root: &Dir) -> Result<Content, String> {
     })
 }
 
+// A listing entry paired with its doc's frontmatter, for sorting by any key.
+type Sortable = (Entry, BTreeMap<String, String>);
+
 #[derive(Default)]
 struct Loader {
     docs: Vec<Doc>,
     listings: Vec<Listing>,
     nav: Vec<(i32, NavLink)>,
     paths: HashSet<String>,
+    reserved: HashSet<String>,
 }
 
 impl Loader {
@@ -155,32 +164,33 @@ impl Loader {
         if let Some((source, mut meta, body)) = index {
             let at = |e| format!("{source}: {e}");
             schema = Schema::take(&mut meta).map_err(at)?.over(inherited);
-            match listing {
-                // A subdirectory's index.md describes its listing rather
-                // than being a doc of its own.
-                Some(idx) => {
-                    self.add_nav(&meta, url, Target::Listing(idx)).map_err(at)?;
-                    let l = self
-                        .listings
-                        .get_mut(idx)
-                        .ok_or("listing index out of range")?;
-                    // Untitled index.md keeps the directory name, not "index".
-                    l.title = title(&meta, &body, &l.title);
-                    l.intro = body;
-                }
+            // A subdirectory's index.md describes its listing rather than
+            // being a doc of its own.
+            if let Some(idx) = listing {
+                self.add_nav(&meta, url, Target::Listing(idx)).map_err(at)?;
+                let l = self
+                    .listings
+                    .get_mut(idx)
+                    .ok_or("listing index out of range")?;
+                // Untitled index.md keeps the directory name, not "index".
+                l.title = title(&meta, &body, &l.title);
+                l.intro = body;
+            } else {
                 // The root index.md is the home page (and is in no listing).
-                None => {
-                    self.add_doc("/".to_owned(), "index", meta, body, None, &source)?;
-                }
+                self.add_doc("/".to_owned(), "index", meta, body, None, &source)?;
             }
         }
 
         let mut entries = Vec::new();
         for (name, source, meta, body) in files {
-            schema.check(&meta).map_err(|e| format!("{source}: {e}"))?;
             let path = format!("{url}/{name}");
-            let entry = self.add_doc(path, name, meta, body, listing, &source)?;
-            entries.push(entry);
+            if self.shadowed(&path, &source) {
+                continue;
+            }
+            schema.check(&meta).map_err(|e| format!("{source}: {e}"))?;
+            if let Some(entry) = self.add_doc(path, name, meta, body, listing, &source)? {
+                entries.push(entry);
+            }
         }
 
         for sub in dir.dirs() {
@@ -188,7 +198,13 @@ impl Loader {
                 continue;
             };
             let path = format!("{url}/{name}");
-            self.claim(&path, &sub.path().display().to_string())?;
+            let source = sub.path().display().to_string();
+            // A shadowed directory is skipped whole, so nothing beneath it
+            // is left without its listing.
+            if self.shadowed(&path, &source) {
+                continue;
+            }
+            self.claim(&path, &source)?;
             let idx = self.listings.len();
             self.listings.push(Listing {
                 path: path.clone(),
@@ -219,7 +235,8 @@ impl Loader {
     }
 
     // Register a doc (route, nav, the doc itself) and return its listing
-    // entry, paired with its frontmatter for sorting.
+    // entry, paired with its frontmatter for sorting — or None if a
+    // registered route shadows it.
     fn add_doc(
         &mut self,
         path: String,
@@ -228,7 +245,10 @@ impl Loader {
         body: String,
         listing: Option<usize>,
         source: &str,
-    ) -> Result<(Entry, BTreeMap<String, String>), String> {
+    ) -> Result<Option<Sortable>, String> {
+        if self.shadowed(&path, source) {
+            return Ok(None);
+        }
         self.claim(&path, source)?;
         let target = Target::Doc(self.docs.len());
         self.add_nav(&meta, &path, target)
@@ -247,7 +267,18 @@ impl Loader {
             body,
             parent: listing,
         });
-        Ok((entry, meta))
+        Ok(Some((entry, meta)))
+    }
+
+    // True if a route registered in code owns `path`. Registered routes win
+    // so a content mistake can't stop the site booting; the content is left
+    // out of routes, nav, and listings, and a warning names it.
+    fn shadowed(&self, path: &str, source: &str) -> bool {
+        let hit = self.reserved.contains(path);
+        if hit {
+            eprintln!("warning: {source}: skipped, {path} is a registered route");
+        }
+        hit
     }
 
     // Reserve a route, failing if two files claim it (e.g. `blog.md` beside `blog/`).
@@ -360,7 +391,7 @@ impl Schema {
     // Sort listing entries by the schema's `sort` key: entries missing the key
     // last, ties by path. Unset anywhere → newest-first when every entry is
     // dated, else by filename (paths share the directory prefix).
-    fn sort(&self, entries: &mut [(Entry, BTreeMap<String, String>)]) {
+    fn sort(&self, entries: &mut [Sortable]) {
         let spec = self.sort.as_deref().unwrap_or_else(|| {
             if entries.iter().all(|(e, _)| e.date.is_some()) {
                 "-date"
@@ -600,7 +631,7 @@ mod tests {
 
     #[test]
     fn routes_and_listings_derive_from_the_tree() -> Result<(), String> {
-        let c = load_from(&TREE)?;
+        let c = load_from(&TREE, &[])?;
         let mut paths: Vec<&str> = c.docs.iter().map(|d| d.path.as_str()).collect();
         paths.sort_unstable();
         assert_eq!(
@@ -789,7 +820,7 @@ mod tests {
 
     #[test]
     fn schema_applies_through_the_tree() -> Result<(), String> {
-        let c = load_from(&SCHEMA_TREE)?;
+        let c = load_from(&SCHEMA_TREE, &[])?;
         let entries = |path: &str| -> Result<Vec<String>, String> {
             let l = c
                 .listings
@@ -830,11 +861,44 @@ mod tests {
                 )),
             ],
         );
-        let err = load_from(&MISSING).err().unwrap_or_default();
+        let err = load_from(&MISSING, &[]).err().unwrap_or_default();
         assert!(
             err.contains("notes/x.md") && err.contains("date"),
             "site-wide rule: {err}"
         );
+    }
+
+    #[test]
+    fn registered_routes_shadow_content() -> Result<(), String> {
+        static SHADOW: Dir = Dir::new(
+            "",
+            &[
+                DirEntry::File(File::new("count.md", b"---\nnav: Count\n---\n")),
+                DirEntry::File(File::new("about.md", b"---\nnav: About\n---\n")),
+                DirEntry::Dir(Dir::new(
+                    "echo",
+                    &[
+                        DirEntry::File(File::new("echo/index.md", b"---\nnav: Echo\n---\n")),
+                        DirEntry::File(File::new("echo/inner.md", b"x")),
+                    ],
+                )),
+                DirEntry::Dir(Dir::new(
+                    "notes",
+                    &[DirEntry::File(File::new("notes/count.md", b"x"))],
+                )),
+            ],
+        );
+        let c = load_from(&SHADOW, &["/count", "/echo"])?;
+        let docs: Vec<&str> = c.docs.iter().map(|d| d.path.as_str()).collect();
+        assert_eq!(
+            docs,
+            ["/about", "/notes/count"],
+            "shadowed doc and directory skipped; only exact paths shadow"
+        );
+        assert!(c.listings.iter().all(|l| l.path != "/echo"));
+        let nav: Vec<&str> = c.nav.iter().map(|n| n.label.as_str()).collect();
+        assert_eq!(nav, ["About"], "shadowed content not in nav");
+        Ok(())
     }
 
     #[test]
@@ -846,18 +910,18 @@ mod tests {
                 DirEntry::Dir(Dir::new("blog", &[])),
             ],
         );
-        assert!(load_from(&CLASH).is_err());
+        assert!(load_from(&CLASH, &[]).is_err());
     }
 
     #[test]
     fn bad_name_fails() {
         static BAD: Dir = Dir::new("", &[DirEntry::File(File::new("Bad Name.md", b"x"))]);
-        assert!(load_from(&BAD).is_err());
+        assert!(load_from(&BAD, &[]).is_err());
     }
 
     #[test]
     fn real_content_loads() -> Result<(), String> {
-        let c = load()?;
+        let c = load(&[])?;
         assert!(c.home.is_some(), "content/index.md is the home page");
         assert!(c.docs.iter().any(|d| d.path == "/code/inkpot"));
         Ok(())
