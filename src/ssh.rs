@@ -471,13 +471,10 @@ fn dim(v: u32) -> u16 {
 // Max reading-column width; the column is centered when the terminal is wider.
 const CONTENT_WIDTH: u16 = 80;
 
-fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
-    // Center a max-width column; body and footer both live inside it.
-    let [column] = Layout::horizontal([Constraint::Max(CONTENT_WIDTH)])
-        .flex(Flex::Center)
-        .areas(frame.area());
-    let [body, foot] = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(column);
+// Max footer height; past this the footer clips rather than squeeze the body.
+const MAX_FOOTER_LINES: u16 = 3;
 
+fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
     // Body text and footer both depend on which screen we're on.
     let (text, foot_text) = match app.screen {
         Screen::Page(idx) => (
@@ -498,6 +495,23 @@ fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
         ),
     };
 
+    // Footer spans the full terminal width (not the reading column) and wraps
+    // when even that is too narrow. NBSP glues each "[k]" to its label, so a
+    // wrap never splits a hint from its key.
+    let footer = Paragraph::new(foot_text.replace("] ", "]\u{a0}"))
+        .alignment(Alignment::Center)
+        .style(Style::default().add_modifier(Modifier::DIM))
+        .wrap(Wrap { trim: true });
+    let foot_h = u16::try_from(footer.line_count(frame.area().width))
+        .unwrap_or(u16::MAX)
+        .min(MAX_FOOTER_LINES);
+    let [main, foot] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(foot_h)]).areas(frame.area());
+    // Only the body is held to a centered max-width reading column.
+    let [body] = Layout::horizontal([Constraint::Max(CONTENT_WIDTH)])
+        .flex(Flex::Center)
+        .areas(main);
+
     let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
     let lines = u16::try_from(paragraph.line_count(body.width)).unwrap_or(u16::MAX);
 
@@ -508,12 +522,7 @@ fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
 
     // Body left-aligned (centered prose reads badly); footer centered.
     frame.render_widget(paragraph.scroll((app.scroll, 0)), body);
-    frame.render_widget(
-        Paragraph::new(foot_text)
-            .alignment(Alignment::Center)
-            .style(Style::default().add_modifier(Modifier::DIM)),
-        foot,
-    );
+    frame.render_widget(footer, foot);
 }
 
 // Assign each label a unique nav key: the first of its letters not already
@@ -830,6 +839,34 @@ mod tests {
                     .unwrap_or_else(|e| match e {});
             }
         }
+    }
+
+    // A footer wider than the terminal wraps instead of clipping: the last
+    // hint must still be on screen, with no "[k]" split from its label.
+    #[test]
+    fn footer_wraps_on_narrow_terminal() {
+        let c = content(
+            vec![
+                page("Home", ""),
+                page("About", ""),
+                page("Projects", ""),
+                page("Contact", ""),
+            ],
+            vec![],
+        );
+        let mut app = App::new();
+        let mut term = Terminal::new(TestBackend::new(40, 10)).unwrap_or_else(|e| match e {});
+        term.draw(|f| ui(f, &mut app, &c))
+            .unwrap_or_else(|e| match e {});
+        let screen = term.backend().to_string();
+        assert!(
+            screen.contains("quit"),
+            "last hint visible after wrapping:\n{screen}"
+        );
+        assert!(
+            screen.contains("[p]\u{a0}projects"),
+            "key stays glued to its label"
+        );
     }
 
     // Regression: the real CrosstermBackend render path (raw CLEAR + hide_cursor
