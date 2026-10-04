@@ -286,7 +286,7 @@ impl Loader {
 }
 
 // Frontmatter keys every doc may use, strict schema or not.
-const BUILT_IN_KEYS: [&str; 3] = ["title", "nav", "order"];
+const BUILT_IN_KEYS: [&str; 4] = ["title", "nav", "order", "date"];
 // Keys that configure a directory's schema; only valid in its index.md.
 const SCHEMA_KEYS: [&str; 3] = ["required", "sort", "strict"];
 
@@ -370,9 +370,18 @@ impl Schema {
         });
         let (key, descending) = spec.strip_prefix('-').map_or((spec, false), |k| (k, true));
         entries.sort_by(|(a, am), (b, bm)| {
-            let by_key = match (am.get(key), bm.get(key)) {
+            // `title` sorts on the resolved title (heading/filename fallback,
+            // and subdirectory titles), not just frontmatter.
+            let value = |e: &'_ Entry, m: &'_ BTreeMap<String, String>| {
+                if key == "title" {
+                    Some(e.title.clone())
+                } else {
+                    m.get(key).cloned()
+                }
+            };
+            let by_key = match (value(a, am), value(b, bm)) {
                 (Some(x), Some(y)) => {
-                    let o = compare_values(x, y);
+                    let o = compare_values(&x, &y);
                     if descending { o.reverse() } else { o }
                 }
                 (Some(_), None) => Ordering::Less,
@@ -384,12 +393,16 @@ impl Schema {
     }
 }
 
-// Numbers compare numerically (so 10 sorts after 9); anything else as a
-// string, which is also correct for ISO-8601 dates.
+// Numbers compare numerically (so 10 sorts after 9) and before any text;
+// text compares as a string, which is also correct for ISO-8601 dates. Must be
+// a total order: `sort_by` may panic on an inconsistent comparison, and mixing
+// numeric and string comparison without ranking one first isn't transitive.
 fn compare_values(a: &str, b: &str) -> Ordering {
     match (a.parse::<i64>(), b.parse::<i64>()) {
         (Ok(x), Ok(y)) => x.cmp(&y),
-        _ => a.cmp(b),
+        (Ok(_), Err(_)) => Ordering::Less,
+        (Err(_), Ok(_)) => Ordering::Greater,
+        (Err(_), Err(_)) => a.cmp(b),
     }
 }
 
@@ -708,6 +721,20 @@ mod tests {
     fn numbers_compare_numerically() {
         assert!(compare_values("9", "10").is_lt());
         assert!(compare_values("2025-01-02", "2025-01-10").is_lt());
+        // Mixed values stay transitive: 2 < 10 < 1a (numbers before text).
+        assert!(compare_values("10", "1a").is_lt());
+        assert!(compare_values("2", "1a").is_lt());
+    }
+
+    #[test]
+    fn date_is_built_in_under_strict() -> Result<(), String> {
+        let schema = Schema::take(&mut meta(&[("strict", "true")]))?;
+        assert!(
+            schema
+                .check(&meta(&[("title", "T"), ("date", "D")]))
+                .is_ok()
+        );
+        Ok(())
     }
 
     static SCHEMA_TREE: Dir = Dir::new(
@@ -746,12 +773,14 @@ mod tests {
                     &[
                         DirEntry::File(File::new(
                             "blog/drafts/index.md",
-                            b"---\nrequired:\nstrict: false\n---\n",
+                            b"---\nrequired:\nstrict: false\nsort: title\n---\n",
                         )),
                         DirEntry::File(File::new(
                             "blog/drafts/idea.md",
                             b"---\nmood: vague\n---\n",
                         )),
+                        // Titled only by its heading; sorts by it, not as missing.
+                        DirEntry::File(File::new("blog/drafts/zz.md", b"# Aardvark\n")),
                     ],
                 )),
             ],
@@ -781,6 +810,11 @@ mod tests {
         );
         // drafts/idea.md has no title/date and an unknown key: loads only
         // because drafts/index.md clears the inherited rules.
+        assert_eq!(
+            entries("/blog/drafts")?,
+            ["/blog/drafts/zz", "/blog/drafts/idea"],
+            "sort: title uses resolved titles (Aardvark, idea)"
+        );
         Ok(())
     }
 
