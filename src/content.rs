@@ -13,11 +13,17 @@
 //! Frontmatter is optional. Built-in keys: `title` (falls back to the first
 //! `# heading`, then the filename), `nav` + `order` (nav entry), `date`
 //! (shown, and sorts a listing newest-first when every entry has one). All
-//! keys are kept in `Doc::meta`. Both frontends render the same `Content` —
+//! keys are kept in `Doc::meta`.
+//!
+//! A directory's `index.md` may also declare a schema for the docs beneath it
+//! — `required` (comma-separated keys), `sort` (`key`/`-key`), `strict`
+//! (reject other keys) — each inherited per key from the nearest ancestor that
+//! sets it, so the root `index.md` sets site-wide rules. See `Schema`. Both frontends render the same `Content` —
 //! HTTP to HTML, SSH to text. Malformed frontmatter, bad names, and route
 //! clashes fail loudly at startup: the files are authored content, so an error
 //! is a bug to surface, not swallow.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
@@ -88,7 +94,7 @@ pub fn load() -> Result<Content, String> {
 
 fn load_from(root: &Dir) -> Result<Content, String> {
     let mut loader = Loader::default();
-    loader.walk(root, "", None)?;
+    loader.walk(root, "", None, &Schema::default())?;
     let Loader {
         docs,
         listings,
@@ -114,61 +120,67 @@ struct Loader {
 }
 
 impl Loader {
-    // Walk one directory. `url` is its route prefix ("" at the root) and
-    // `listing` its listing index (None at the root, which has no listing).
-    // Returns the entries for that listing.
-    fn walk(&mut self, dir: &Dir, url: &str, listing: Option<usize>) -> Result<Vec<Entry>, String> {
-        let mut entries = Vec::new();
-
+    // Walk one directory. `url` is its route prefix ("" at the root),
+    // `listing` its listing index (None at the root, which has no listing),
+    // and `inherited` the schema in force from its ancestors. Returns the
+    // entries for that listing.
+    fn walk(
+        &mut self,
+        dir: &Dir,
+        url: &str,
+        listing: Option<usize>,
+        inherited: &Schema,
+    ) -> Result<Vec<Entry>, String> {
+        // Parse every file first: the directory's index.md carries the schema
+        // its siblings are checked against, so it must be read before them.
+        let mut index = None;
+        let mut files = Vec::new();
         for file in dir.files() {
             let Some(name) = segment(file.path(), true)? else {
                 continue;
             };
-            let source = file.path().display();
+            let source = file.path().display().to_string();
             let raw = file
                 .contents_utf8()
                 .ok_or_else(|| format!("{source}: not valid UTF-8"))?;
             let (meta, body) = parse(raw).map_err(|e| format!("{source}: {e}"))?;
-
-            // A subdirectory's index.md describes its listing rather than
-            // being a doc of its own.
-            if let (Some(idx), "index") = (listing, name) {
-                let target = Target::Listing(idx);
-                self.add_nav(&meta, url, target)
-                    .map_err(|e| format!("{source}: {e}"))?;
-                let l = self
-                    .listings
-                    .get_mut(idx)
-                    .ok_or("listing index out of range")?;
-                // Untitled index.md keeps the directory name, not "index".
-                l.title = title(&meta, &body, &l.title);
-                l.intro = body;
-                continue;
-            }
-
-            let title = title(&meta, &body, name);
-            let path = if name == "index" {
-                "/".to_owned()
+            if name == "index" {
+                index = Some((source, meta, body));
             } else {
-                format!("{url}/{name}")
-            };
-            self.claim(&path, &source.to_string())?;
-            let target = Target::Doc(self.docs.len());
-            self.add_nav(&meta, &path, target)
-                .map_err(|e| format!("{source}: {e}"))?;
-            entries.push(Entry {
-                title: title.clone(),
-                path: path.clone(),
-                date: meta.get("date").cloned(),
-                target,
-            });
-            self.docs.push(Doc {
-                path,
-                title,
-                meta,
-                body,
-                parent: listing,
-            });
+                files.push((name, source, meta, body));
+            }
+        }
+
+        let mut schema = inherited.clone();
+        if let Some((source, mut meta, body)) = index {
+            let at = |e| format!("{source}: {e}");
+            schema = Schema::take(&mut meta).map_err(at)?.over(inherited);
+            match listing {
+                // A subdirectory's index.md describes its listing rather
+                // than being a doc of its own.
+                Some(idx) => {
+                    self.add_nav(&meta, url, Target::Listing(idx)).map_err(at)?;
+                    let l = self
+                        .listings
+                        .get_mut(idx)
+                        .ok_or("listing index out of range")?;
+                    // Untitled index.md keeps the directory name, not "index".
+                    l.title = title(&meta, &body, &l.title);
+                    l.intro = body;
+                }
+                // The root index.md is the home page (and is in no listing).
+                None => {
+                    self.add_doc("/".to_owned(), "index", meta, body, None, &source)?;
+                }
+            }
+        }
+
+        let mut entries = Vec::new();
+        for (name, source, meta, body) in files {
+            schema.check(&meta).map_err(|e| format!("{source}: {e}"))?;
+            let path = format!("{url}/{name}");
+            let entry = self.add_doc(path, name, meta, body, listing, &source)?;
+            entries.push(entry);
         }
 
         for sub in dir.dirs() {
@@ -185,28 +197,57 @@ impl Loader {
                 entries: Vec::new(),
                 parent: listing,
             });
-            let sub_entries = self.walk(sub, &path, Some(idx))?;
+            let sub_entries = self.walk(sub, &path, Some(idx), &schema)?;
             let l = self
                 .listings
                 .get_mut(idx)
                 .ok_or("listing index out of range")?;
             l.entries = sub_entries;
-            entries.push(Entry {
-                title: l.title.clone(),
-                path,
-                date: None,
-                target: Target::Listing(idx),
-            });
+            entries.push((
+                Entry {
+                    title: l.title.clone(),
+                    path,
+                    date: None,
+                    target: Target::Listing(idx),
+                },
+                BTreeMap::new(),
+            ));
         }
 
-        // Dated listings (e.g. a blog) read newest-first; anything else by
-        // filename. ISO-8601 dates sort correctly as plain strings.
-        if entries.iter().all(|e| e.date.is_some()) {
-            entries.sort_by(|a, b| b.date.cmp(&a.date));
-        } else {
-            entries.sort_by(|a, b| a.path.cmp(&b.path));
-        }
-        Ok(entries)
+        schema.sort(&mut entries);
+        Ok(entries.into_iter().map(|(entry, _)| entry).collect())
+    }
+
+    // Register a doc (route, nav, the doc itself) and return its listing
+    // entry, paired with its frontmatter for sorting.
+    fn add_doc(
+        &mut self,
+        path: String,
+        name: &str,
+        meta: BTreeMap<String, String>,
+        body: String,
+        listing: Option<usize>,
+        source: &str,
+    ) -> Result<(Entry, BTreeMap<String, String>), String> {
+        self.claim(&path, source)?;
+        let target = Target::Doc(self.docs.len());
+        self.add_nav(&meta, &path, target)
+            .map_err(|e| format!("{source}: {e}"))?;
+        let title = title(&meta, &body, name);
+        let entry = Entry {
+            title: title.clone(),
+            path: path.clone(),
+            date: meta.get("date").cloned(),
+            target,
+        };
+        self.docs.push(Doc {
+            path,
+            title,
+            meta: meta.clone(),
+            body,
+            parent: listing,
+        });
+        Ok((entry, meta))
     }
 
     // Reserve a route, failing if two files claim it (e.g. `blog.md` beside `blog/`).
@@ -241,6 +282,114 @@ impl Loader {
             },
         ));
         Ok(())
+    }
+}
+
+// Frontmatter keys every doc may use, strict schema or not.
+const BUILT_IN_KEYS: [&str; 3] = ["title", "nav", "order"];
+// Keys that configure a directory's schema; only valid in its index.md.
+const SCHEMA_KEYS: [&str; 3] = ["required", "sort", "strict"];
+
+// A directory's schema, set in its index.md. Each key is None when unset, so
+// it inherits from the nearest ancestor that sets it (see `over`); an explicit
+// empty `required:`/`sort:` or `strict: false` clears an inherited rule. Set in
+// the root index.md, a key applies site-wide.
+#[derive(Clone, Default)]
+struct Schema {
+    // Frontmatter keys every doc must have.
+    required: Option<Vec<String>>,
+    // Key to sort the listing by, `-`-prefixed for descending; empty = filename.
+    sort: Option<String>,
+    // Reject keys outside `required` and the built-ins (catches typos).
+    strict: Option<bool>,
+}
+
+impl Schema {
+    // Remove the schema keys from an index.md's frontmatter, so they aren't
+    // exposed in `meta`.
+    fn take(meta: &mut BTreeMap<String, String>) -> Result<Self, String> {
+        let strict = meta
+            .remove("strict")
+            .map(|v| match v.as_str() {
+                "true" => Ok(true),
+                "false" => Ok(false),
+                _ => Err(format!("strict must be true or false: {v}")),
+            })
+            .transpose()?;
+        Ok(Self {
+            required: meta.remove("required").map(|v| {
+                v.split(',')
+                    .map(str::trim)
+                    .filter(|k| !k.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            }),
+            sort: meta.remove("sort"),
+            strict,
+        })
+    }
+
+    // This schema, with any unset key taken from `parent`.
+    fn over(self, parent: &Self) -> Self {
+        Self {
+            required: self.required.or_else(|| parent.required.clone()),
+            sort: self.sort.or_else(|| parent.sort.clone()),
+            strict: self.strict.or(parent.strict),
+        }
+    }
+
+    // Check a doc's frontmatter against the schema.
+    fn check(&self, meta: &BTreeMap<String, String>) -> Result<(), String> {
+        if let Some(key) = meta.keys().find(|k| SCHEMA_KEYS.contains(&k.as_str())) {
+            return Err(format!("`{key}` is only valid in a directory's index.md"));
+        }
+        let required = self.required.as_deref().unwrap_or_default();
+        if let Some(key) = required.iter().find(|k| !meta.contains_key(*k)) {
+            return Err(format!("missing required frontmatter key: {key}"));
+        }
+        if self.strict == Some(true)
+            && let Some(key) = meta
+                .keys()
+                .find(|k| !BUILT_IN_KEYS.contains(&k.as_str()) && !required.contains(k))
+        {
+            return Err(format!("unknown frontmatter key (strict schema): {key}"));
+        }
+        Ok(())
+    }
+
+    // Sort listing entries by the schema's `sort` key: entries missing the key
+    // last, ties by path. Unset anywhere → newest-first when every entry is
+    // dated, else by filename (paths share the directory prefix).
+    fn sort(&self, entries: &mut [(Entry, BTreeMap<String, String>)]) {
+        let spec = self.sort.as_deref().unwrap_or_else(|| {
+            if entries.iter().all(|(e, _)| e.date.is_some()) {
+                "-date"
+            } else {
+                ""
+            }
+        });
+        let (key, descending) = spec.strip_prefix('-').map_or((spec, false), |k| (k, true));
+        entries.sort_by(|(a, am), (b, bm)| {
+            let by_key = match (am.get(key), bm.get(key)) {
+                (Some(x), Some(y)) => {
+                    let o = compare_values(x, y);
+                    if descending { o.reverse() } else { o }
+                }
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (None, None) => Ordering::Equal,
+            };
+            by_key.then_with(|| a.path.cmp(&b.path))
+        });
+    }
+}
+
+// Numbers compare numerically (so 10 sorts after 9); anything else as a
+// string, which is also correct for ISO-8601 dates.
+fn compare_values(a: &str, b: &str) -> Ordering {
+    match (a.parse::<i64>(), b.parse::<i64>()) {
+        (Ok(x), Ok(y)) => x.cmp(&y),
+        _ => a.cmp(b),
     }
 }
 
@@ -341,8 +490,9 @@ fn parse(raw: &str) -> Result<(BTreeMap<String, String>, String), String> {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use super::{Target, is_valid_slug, load, load_from, parse};
+    use super::{Schema, Target, compare_values, is_valid_slug, load, load_from, parse};
     use include_dir::{Dir, DirEntry, File};
+    use std::collections::BTreeMap;
 
     #[test]
     fn slug_validation_accepts_safe_rejects_unsafe() {
@@ -501,6 +651,156 @@ mod tests {
             Some(Target::Listing(_))
         ));
         Ok(())
+    }
+
+    fn meta(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn schema_checks_required_strict_and_reserved_keys() -> Result<(), String> {
+        let schema = Schema::take(&mut meta(&[
+            ("required", "title, date"),
+            ("strict", "true"),
+        ]))?;
+        assert!(
+            schema
+                .check(&meta(&[("title", "T"), ("date", "D"), ("nav", "N")]))
+                .is_ok()
+        );
+        assert!(
+            schema.check(&meta(&[("title", "T")])).is_err(),
+            "missing date"
+        );
+        assert!(
+            schema
+                .check(&meta(&[("title", "T"), ("date", "D"), ("dtae", "x")]))
+                .is_err(),
+            "strict rejects typos"
+        );
+        assert!(
+            Schema::default().check(&meta(&[("sort", "x")])).is_err(),
+            "schema keys only in index.md"
+        );
+        assert!(Schema::take(&mut meta(&[("strict", "yes")])).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn schema_inherits_per_key_and_clears_explicitly() -> Result<(), String> {
+        let parent = Schema::take(&mut meta(&[("required", "date"), ("strict", "true")]))?;
+        let child = Schema::take(&mut meta(&[("sort", "title")]))?.over(&parent);
+        assert_eq!(child.required, Some(vec!["date".to_owned()]), "inherited");
+        assert_eq!(child.sort.as_deref(), Some("title"), "overridden");
+        let cleared =
+            Schema::take(&mut meta(&[("required", ""), ("strict", "false")]))?.over(&parent);
+        assert!(
+            cleared.check(&meta(&[("anything", "x")])).is_ok(),
+            "rules cleared"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn numbers_compare_numerically() {
+        assert!(compare_values("9", "10").is_lt());
+        assert!(compare_values("2025-01-02", "2025-01-10").is_lt());
+    }
+
+    static SCHEMA_TREE: Dir = Dir::new(
+        "",
+        &[DirEntry::Dir(Dir::new(
+            "blog",
+            &[
+                DirEntry::File(File::new(
+                    "blog/index.md",
+                    b"---\nrequired: title, date\nsort: -date\nstrict: true\n---\n",
+                )),
+                DirEntry::File(File::new(
+                    "blog/a.md",
+                    b"---\ntitle: A\ndate: 2024-01-01\n---\n",
+                )),
+                DirEntry::File(File::new(
+                    "blog/b.md",
+                    b"---\ntitle: B\ndate: 2025-01-01\n---\n",
+                )),
+                DirEntry::Dir(Dir::new(
+                    "blog/2026",
+                    &[
+                        DirEntry::File(File::new("blog/2026/index.md", b"---\nsort: title\n---\n")),
+                        DirEntry::File(File::new(
+                            "blog/2026/y.md",
+                            b"---\ntitle: Zed\ndate: 2026-02-01\n---\n",
+                        )),
+                        DirEntry::File(File::new(
+                            "blog/2026/z.md",
+                            b"---\ntitle: Alpha\ndate: 2026-01-01\n---\n",
+                        )),
+                    ],
+                )),
+                DirEntry::Dir(Dir::new(
+                    "blog/drafts",
+                    &[
+                        DirEntry::File(File::new(
+                            "blog/drafts/index.md",
+                            b"---\nrequired:\nstrict: false\n---\n",
+                        )),
+                        DirEntry::File(File::new(
+                            "blog/drafts/idea.md",
+                            b"---\nmood: vague\n---\n",
+                        )),
+                    ],
+                )),
+            ],
+        ))],
+    );
+
+    #[test]
+    fn schema_applies_through_the_tree() -> Result<(), String> {
+        let c = load_from(&SCHEMA_TREE)?;
+        let entries = |path: &str| -> Result<Vec<String>, String> {
+            let l = c
+                .listings
+                .iter()
+                .find(|l| l.path == path)
+                .ok_or_else(|| path.to_owned())?;
+            Ok(l.entries.iter().map(|e| e.path.clone()).collect())
+        };
+        assert_eq!(
+            entries("/blog")?,
+            ["/blog/b", "/blog/a", "/blog/2026", "/blog/drafts"],
+            "-date; undated subdirectories last"
+        );
+        assert_eq!(
+            entries("/blog/2026")?,
+            ["/blog/2026/z", "/blog/2026/y"],
+            "sort overridden to title (Alpha, Zed)"
+        );
+        // drafts/idea.md has no title/date and an unknown key: loads only
+        // because drafts/index.md clears the inherited rules.
+        Ok(())
+    }
+
+    #[test]
+    fn root_index_schema_applies_site_wide() {
+        static MISSING: Dir = Dir::new(
+            "",
+            &[
+                DirEntry::File(File::new("index.md", b"---\nrequired: date\n---\n")),
+                DirEntry::Dir(Dir::new(
+                    "notes",
+                    &[DirEntry::File(File::new("notes/x.md", b"undated"))],
+                )),
+            ],
+        );
+        let err = load_from(&MISSING).err().unwrap_or_default();
+        assert!(
+            err.contains("notes/x.md") && err.contains("date"),
+            "site-wide rule: {err}"
+        );
     }
 
     #[test]
