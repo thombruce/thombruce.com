@@ -153,14 +153,18 @@ impl App {
         self.open(Target::Doc(self.home));
     }
 
+    // Paging starts the new list page at its top: entries with detail lines
+    // (e.g. `projects`) can make a page taller than the screen.
     const fn next_list_page(&mut self, entry_count: usize) {
         if self.list_page.saturating_add(1).saturating_mul(PAGE_SIZE) < entry_count {
             self.list_page = self.list_page.saturating_add(1);
+            self.scroll = 0;
         }
     }
 
     const fn prev_list_page(&mut self) {
         self.list_page = self.list_page.saturating_sub(1);
+        self.scroll = 0;
     }
 
     fn scroll_down(&mut self, step: u16) {
@@ -649,7 +653,9 @@ fn listing_footer(listing: &Listing, list_page: usize) -> String {
     if listing.parent.is_some() {
         out.push_str("[b] back  ");
     }
-    out.push_str("[h] home  [q] quit");
+    // Always shown, like a doc's `[space] scroll`: a page of entries with
+    // detail lines can overflow the screen. (Space doesn't scroll here.)
+    out.push_str("[↑↓] scroll  [h] home  [q] quit");
     out
 }
 
@@ -906,6 +912,14 @@ mod tests {
         assert_eq!(app.list_page, 0);
         app.prev_list_page();
         assert_eq!(app.list_page, 0, "no page before the first");
+
+        // Paging starts the new page at its top.
+        app.scroll = 5;
+        app.next_list_page(12);
+        assert_eq!((app.list_page, app.scroll), (1, 0));
+        app.scroll = 5;
+        app.prev_list_page();
+        assert_eq!((app.list_page, app.scroll), (0, 0));
     }
 
     #[test]
@@ -916,7 +930,7 @@ mod tests {
         assert!(!body.contains("Page 1"), "no page counter when empty");
         assert_eq!(
             listing_footer(&empty, 0),
-            "[h] home  [q] quit",
+            "[↑↓] scroll  [h] home  [q] quit",
             "no open/paging/back hints when empty at the top level"
         );
         assert!(listing_footer(&listing(0, Some(0)), 0).contains("[b] back"));
