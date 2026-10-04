@@ -17,9 +17,13 @@
 //!
 //! A directory's `index.md` may also declare a schema for the docs beneath it
 //! — `required` (comma-separated keys), `sort` (`key`/`-key`), `strict`
-//! (reject other keys) — each inherited per key from the nearest ancestor that
-//! sets it, so the root `index.md` sets site-wide rules. See `Schema`. Both frontends render the same `Content` —
-//! HTTP to HTML, SSH to text. Malformed frontmatter, bad names, and route
+//! (reject other keys) — and default templates (`default_layout` for docs,
+//! `default_index_layout` for listings), each inherited per key from the
+//! nearest ancestor that sets it, so the root `index.md` sets site-wide rules.
+//! See `Schema`. A page's own `layout` key picks its template, for that page
+//! only. Template names are checked against the `Registry`.
+//!
+//! Both frontends render the same `Content` — HTTP to HTML, SSH to text. Malformed frontmatter, bad names, and route
 //! clashes fail loudly at startup: the files are authored content, so an error
 //! is a bug to surface, not swallow.
 
@@ -39,6 +43,9 @@ pub struct Doc {
     pub body: String,
     // The listing this doc sits in; None for docs at the content root.
     pub parent: Option<usize>,
+    // Template name: its own `layout`, else the nearest `default_layout`.
+    // None renders with the built-in doc template.
+    pub layout: Option<String>,
 }
 
 impl Doc {
@@ -55,6 +62,9 @@ pub struct Listing {
     pub entries: Vec<Entry>,
     // The enclosing listing; None for directories at the content root.
     pub parent: Option<usize>,
+    // Template name: its index.md `layout`, else the nearest
+    // `default_index_layout`. None renders with the built-in listing template.
+    pub layout: Option<String>,
 }
 
 // Something a link can open, as an index into `Content::docs`/`listings` — so
@@ -88,15 +98,25 @@ pub struct Content {
     pub home: Option<usize>,
 }
 
-// Load all content. `reserved` are paths registered in code (dynamic routes),
-// which take precedence: content at one of them is skipped with a warning.
-pub fn load(reserved: &[&str]) -> Result<Content, String> {
-    load_from(&CONTENT, reserved)
+// Names defined in code that content can clash with or refer to.
+#[derive(Default)]
+pub struct Registry {
+    // Paths of routes registered in code. They take precedence: content at
+    // one of them is skipped with a warning.
+    pub routes: Vec<&'static str>,
+    // Template names a doc's `layout`/`default_layout` may select.
+    pub doc_layouts: Vec<&'static str>,
+    // Template names a listing's `layout`/`default_index_layout` may select.
+    pub index_layouts: Vec<&'static str>,
 }
 
-fn load_from(root: &Dir, reserved: &[&str]) -> Result<Content, String> {
+pub fn load(registry: Registry) -> Result<Content, String> {
+    load_from(&CONTENT, registry)
+}
+
+fn load_from(root: &Dir, registry: Registry) -> Result<Content, String> {
     let mut loader = Loader {
-        reserved: reserved.iter().map(|&p| p.to_owned()).collect(),
+        registry,
         ..Loader::default()
     };
     loader.walk(root, "", None, &Schema::default())?;
@@ -119,13 +139,23 @@ fn load_from(root: &Dir, reserved: &[&str]) -> Result<Content, String> {
 // A listing entry paired with its doc's frontmatter, for sorting by any key.
 type Sortable = (Entry, BTreeMap<String, String>);
 
+// One parsed Markdown file.
+struct Parsed<'a> {
+    // Route segment (file stem); "index" for a directory's index.md.
+    name: &'a str,
+    // Path within content/, for error messages.
+    source: String,
+    meta: BTreeMap<String, String>,
+    body: String,
+}
+
 #[derive(Default)]
 struct Loader {
     docs: Vec<Doc>,
     listings: Vec<Listing>,
     nav: Vec<(i32, NavLink)>,
     paths: HashSet<String>,
-    reserved: HashSet<String>,
+    registry: Registry,
 }
 
 impl Loader {
@@ -153,42 +183,31 @@ impl Loader {
                 .contents_utf8()
                 .ok_or_else(|| format!("{source}: not valid UTF-8"))?;
             let (meta, body) = parse(raw).map_err(|e| format!("{source}: {e}"))?;
+            let parsed = Parsed {
+                name,
+                source,
+                meta,
+                body,
+            };
             if name == "index" {
-                index = Some((source, meta, body));
+                index = Some(parsed);
             } else {
-                files.push((name, source, meta, body));
+                files.push(parsed);
             }
         }
 
-        let mut schema = inherited.clone();
-        if let Some((source, mut meta, body)) = index {
-            let at = |e| format!("{source}: {e}");
-            schema = Schema::take(&mut meta).map_err(at)?.over(inherited);
-            // A subdirectory's index.md describes its listing rather than
-            // being a doc of its own.
-            if let Some(idx) = listing {
-                self.add_nav(&meta, url, Target::Listing(idx)).map_err(at)?;
-                let l = self
-                    .listings
-                    .get_mut(idx)
-                    .ok_or("listing index out of range")?;
-                // Untitled index.md keeps the directory name, not "index".
-                l.title = title(&meta, &body, &l.title);
-                l.intro = body;
-            } else {
-                // The root index.md is the home page (and is in no listing).
-                self.add_doc("/".to_owned(), "index", meta, body, None, &source)?;
-            }
-        }
+        let schema = self.apply_index(index, dir, url, listing, inherited)?;
 
         let mut entries = Vec::new();
-        for (name, source, meta, body) in files {
-            let path = format!("{url}/{name}");
-            if self.shadowed(&path, &source) {
+        for file in files {
+            let path = format!("{url}/{}", file.name);
+            if self.shadowed(&path, &file.source) {
                 continue;
             }
-            schema.check(&meta).map_err(|e| format!("{source}: {e}"))?;
-            if let Some(entry) = self.add_doc(path, name, meta, body, listing, &source)? {
+            schema
+                .check(&file.meta)
+                .map_err(|e| format!("{}: {e}", file.source))?;
+            if let Some(entry) = self.add_doc(path, file, listing, &schema)? {
                 entries.push(entry);
             }
         }
@@ -212,6 +231,7 @@ impl Loader {
                 intro: String::new(),
                 entries: Vec::new(),
                 parent: listing,
+                layout: None,
             });
             let sub_entries = self.walk(sub, &path, Some(idx), &schema)?;
             let l = self
@@ -234,25 +254,98 @@ impl Loader {
         Ok(entries.into_iter().map(|(entry, _)| entry).collect())
     }
 
+    // Apply a directory's index.md (if any) and return the schema in force
+    // for the directory. In a subdirectory it describes the listing (title,
+    // nav, intro, layout); at the root it is the home page. Every listing
+    // resolves its layout, so one without index.md still inherits
+    // `default_index_layout`.
+    fn apply_index(
+        &mut self,
+        index: Option<Parsed>,
+        dir: &Dir,
+        url: &str,
+        listing: Option<usize>,
+        inherited: &Schema,
+    ) -> Result<Schema, String> {
+        let Some(mut index) = index else {
+            if let Some(idx) = listing {
+                let source = dir.path().display().to_string();
+                self.set_listing_layout(idx, None, inherited, &source)?;
+            }
+            return Ok(inherited.clone());
+        };
+        let source = index.source.clone();
+        let at = |e| format!("{source}: {e}");
+        let schema = Schema::take(&mut index.meta).map_err(at)?.over(inherited);
+        let Some(idx) = listing else {
+            // The root index.md is the home page: a doc (the root has no
+            // listing), so it follows the doc layout rule.
+            self.add_doc("/".to_owned(), index, None, &schema)?;
+            return Ok(schema);
+        };
+        self.add_nav(&index.meta, url, Target::Listing(idx))
+            .map_err(at)?;
+        self.set_listing_layout(idx, index.meta.get("layout"), &schema, &source)?;
+        let l = self
+            .listings
+            .get_mut(idx)
+            .ok_or("listing index out of range")?;
+        // Untitled index.md keeps the directory name, not "index".
+        l.title = title(&index.meta, &index.body, &l.title);
+        l.intro = index.body;
+        Ok(schema)
+    }
+
+    fn set_listing_layout(
+        &mut self,
+        idx: usize,
+        own: Option<&String>,
+        schema: &Schema,
+        source: &str,
+    ) -> Result<(), String> {
+        let layout = resolve_layout(
+            own,
+            schema.default_index_layout.as_ref(),
+            &self.registry.index_layouts,
+        )
+        .map_err(|e| format!("{source}: {e}"))?;
+        let l = self
+            .listings
+            .get_mut(idx)
+            .ok_or("listing index out of range")?;
+        l.layout = layout;
+        Ok(())
+    }
+
     // Register a doc (route, nav, the doc itself) and return its listing
     // entry, paired with its frontmatter for sorting — or None if a
     // registered route shadows it.
     fn add_doc(
         &mut self,
         path: String,
-        name: &str,
-        meta: BTreeMap<String, String>,
-        body: String,
+        file: Parsed,
         listing: Option<usize>,
-        source: &str,
+        schema: &Schema,
     ) -> Result<Option<Sortable>, String> {
-        if self.shadowed(&path, source) {
+        let Parsed {
+            name,
+            source,
+            meta,
+            body,
+        } = file;
+        if self.shadowed(&path, &source) {
             return Ok(None);
         }
-        self.claim(&path, source)?;
+        self.claim(&path, &source)?;
+        let at = |e| format!("{source}: {e}");
         let target = Target::Doc(self.docs.len());
-        self.add_nav(&meta, &path, target)
-            .map_err(|e| format!("{source}: {e}"))?;
+        self.add_nav(&meta, &path, target).map_err(at)?;
+        let layout = resolve_layout(
+            meta.get("layout"),
+            schema.default_layout.as_ref(),
+            &self.registry.doc_layouts,
+        )
+        .map_err(at)?;
         let title = title(&meta, &body, name);
         let entry = Entry {
             title: title.clone(),
@@ -266,6 +359,7 @@ impl Loader {
             meta: meta.clone(),
             body,
             parent: listing,
+            layout,
         });
         Ok(Some((entry, meta)))
     }
@@ -274,7 +368,7 @@ impl Loader {
     // so a content mistake can't stop the site booting; the content is left
     // out of routes, nav, and listings, and a warning names it.
     fn shadowed(&self, path: &str, source: &str) -> bool {
-        let hit = self.reserved.contains(path);
+        let hit = self.registry.routes.contains(&path);
         if hit {
             eprintln!("warning: {source}: skipped, {path} is a registered route");
         }
@@ -317,9 +411,15 @@ impl Loader {
 }
 
 // Frontmatter keys every doc may use, strict schema or not.
-const BUILT_IN_KEYS: [&str; 4] = ["title", "nav", "order", "date"];
+const BUILT_IN_KEYS: [&str; 5] = ["title", "nav", "order", "date", "layout"];
 // Keys that configure a directory's schema; only valid in its index.md.
-const SCHEMA_KEYS: [&str; 3] = ["required", "sort", "strict"];
+const SCHEMA_KEYS: [&str; 5] = [
+    "required",
+    "sort",
+    "strict",
+    "default_layout",
+    "default_index_layout",
+];
 
 // A directory's schema, set in its index.md. Each key is None when unset, so
 // it inherits from the nearest ancestor that sets it (see `over`); an explicit
@@ -333,6 +433,10 @@ struct Schema {
     sort: Option<String>,
     // Reject keys outside `required` and the built-ins (catches typos).
     strict: Option<bool>,
+    // Template for docs beneath; empty = the built-in doc template.
+    default_layout: Option<String>,
+    // Template for listings beneath; empty = the built-in listing template.
+    default_index_layout: Option<String>,
 }
 
 impl Schema {
@@ -357,6 +461,8 @@ impl Schema {
             }),
             sort: meta.remove("sort"),
             strict,
+            default_layout: meta.remove("default_layout"),
+            default_index_layout: meta.remove("default_index_layout"),
         })
     }
 
@@ -366,6 +472,12 @@ impl Schema {
             required: self.required.or_else(|| parent.required.clone()),
             sort: self.sort.or_else(|| parent.sort.clone()),
             strict: self.strict.or(parent.strict),
+            default_layout: self
+                .default_layout
+                .or_else(|| parent.default_layout.clone()),
+            default_index_layout: self
+                .default_index_layout
+                .or_else(|| parent.default_index_layout.clone()),
         }
     }
 
@@ -437,6 +549,20 @@ fn compare_values(a: &str, b: &str) -> Ordering {
     }
 }
 
+// A page's template: its own `layout`, else the inherited default; empty
+// means the built-in template (None). A name not in `known` — unknown, or a
+// template of the other kind — is an error.
+fn resolve_layout(
+    own: Option<&String>,
+    default: Option<&String>,
+    known: &[&str],
+) -> Result<Option<String>, String> {
+    match own.or(default).filter(|name| !name.is_empty()) {
+        Some(name) if !known.contains(&name.as_str()) => Err(format!("unknown layout: {name}")),
+        name => Ok(name.cloned()),
+    }
+}
+
 // The route segment for a file (its stem) or directory (its name), or None if
 // it isn't content: non-Markdown files, and `_`/`.`-prefixed entries.
 fn segment(path: &Path, is_file: bool) -> Result<Option<&str>, String> {
@@ -503,6 +629,22 @@ fn first_h1(body: &str) -> Option<String> {
     Some(text.trim().to_owned()).filter(|t| !t.is_empty())
 }
 
+// The body without its leading H1, for templates that render the title
+// themselves (so it isn't repeated). Unchanged if the body doesn't open with
+// an H1. The range of a heading's Start event spans the whole heading.
+pub fn strip_leading_h1(body: &str) -> &str {
+    match Parser::new(body).into_offset_iter().next() {
+        Some((
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H1,
+                ..
+            }),
+            range,
+        )) => body.get(range.end..).unwrap_or(body),
+        _ => body,
+    }
+}
+
 // Split optional `---` frontmatter (flat `key: value` lines) from the
 // Markdown body. No opening delimiter → no frontmatter, all body. CRLF is
 // normalized; the closing `---` may be the last line, with no newline after.
@@ -534,7 +676,10 @@ fn parse(raw: &str) -> Result<(BTreeMap<String, String>, String), String> {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use super::{Schema, Target, compare_values, is_valid_slug, load, load_from, parse};
+    use super::{
+        Registry, Schema, Target, compare_values, is_valid_slug, load, load_from, parse,
+        strip_leading_h1,
+    };
     use include_dir::{Dir, DirEntry, File};
     use std::collections::BTreeMap;
 
@@ -631,7 +776,7 @@ mod tests {
 
     #[test]
     fn routes_and_listings_derive_from_the_tree() -> Result<(), String> {
-        let c = load_from(&TREE, &[])?;
+        let c = load_from(&TREE, Registry::default())?;
         let mut paths: Vec<&str> = c.docs.iter().map(|d| d.path.as_str()).collect();
         paths.sort_unstable();
         assert_eq!(
@@ -820,7 +965,7 @@ mod tests {
 
     #[test]
     fn schema_applies_through_the_tree() -> Result<(), String> {
-        let c = load_from(&SCHEMA_TREE, &[])?;
+        let c = load_from(&SCHEMA_TREE, Registry::default())?;
         let entries = |path: &str| -> Result<Vec<String>, String> {
             let l = c
                 .listings
@@ -861,7 +1006,9 @@ mod tests {
                 )),
             ],
         );
-        let err = load_from(&MISSING, &[]).err().unwrap_or_default();
+        let err = load_from(&MISSING, Registry::default())
+            .err()
+            .unwrap_or_default();
         assert!(
             err.contains("notes/x.md") && err.contains("date"),
             "site-wide rule: {err}"
@@ -888,7 +1035,13 @@ mod tests {
                 )),
             ],
         );
-        let c = load_from(&SHADOW, &["/count", "/echo"])?;
+        let c = load_from(
+            &SHADOW,
+            Registry {
+                routes: vec!["/count", "/echo"],
+                ..Registry::default()
+            },
+        )?;
         let docs: Vec<&str> = c.docs.iter().map(|d| d.path.as_str()).collect();
         assert_eq!(
             docs,
@@ -901,6 +1054,138 @@ mod tests {
         Ok(())
     }
 
+    fn layouts() -> Registry {
+        Registry {
+            doc_layouts: vec!["home", "page", "post"],
+            index_layouts: vec!["list"],
+            ..Registry::default()
+        }
+    }
+
+    static LAYOUT_TREE: Dir = Dir::new(
+        "",
+        &[
+            DirEntry::File(File::new(
+                "index.md",
+                b"---\nlayout: home\ndefault_layout: page\ndefault_index_layout: list\n---\n",
+            )),
+            DirEntry::File(File::new("about.md", b"x")),
+            DirEntry::Dir(Dir::new(
+                "blog",
+                &[
+                    DirEntry::File(File::new(
+                        "blog/index.md",
+                        b"---\ndefault_layout: post\n---\n",
+                    )),
+                    DirEntry::File(File::new("blog/a.md", b"x")),
+                    DirEntry::File(File::new("blog/b.md", b"---\nlayout:\n---\n")),
+                    DirEntry::File(File::new("blog/c.md", b"---\nlayout: page\n---\n")),
+                ],
+            )),
+            DirEntry::Dir(Dir::new(
+                "notes",
+                &[DirEntry::File(File::new("notes/n.md", b"x"))],
+            )),
+        ],
+    );
+
+    #[test]
+    fn layouts_resolve_own_then_nearest_default() -> Result<(), String> {
+        let c = load_from(&LAYOUT_TREE, layouts())?;
+        let doc = |path: &str| {
+            c.docs
+                .iter()
+                .find(|d| d.path == path)
+                .and_then(|d| d.layout.clone())
+        };
+        let listing = |path: &str| {
+            c.listings
+                .iter()
+                .find(|l| l.path == path)
+                .and_then(|l| l.layout.clone())
+        };
+        assert_eq!(
+            doc("/").as_deref(),
+            Some("home"),
+            "home's own layout, for it only"
+        );
+        assert_eq!(
+            doc("/about").as_deref(),
+            Some("page"),
+            "root default_layout"
+        );
+        assert_eq!(
+            doc("/blog/a").as_deref(),
+            Some("post"),
+            "nearest default_layout"
+        );
+        assert_eq!(doc("/blog/b"), None, "empty layout: built-in");
+        assert_eq!(doc("/blog/c").as_deref(), Some("page"), "own layout wins");
+        assert_eq!(
+            doc("/notes/n").as_deref(),
+            Some("page"),
+            "inherited from root"
+        );
+        assert_eq!(
+            listing("/blog").as_deref(),
+            Some("list"),
+            "default_index_layout"
+        );
+        assert_eq!(
+            listing("/notes").as_deref(),
+            Some("list"),
+            "even without index.md"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_or_wrong_kind_layout_fails() {
+        static UNKNOWN: Dir = Dir::new(
+            "",
+            &[DirEntry::File(File::new(
+                "a.md",
+                b"---\nlayout: nope\n---\n",
+            ))],
+        );
+        static WRONG_KIND: Dir = Dir::new(
+            "",
+            &[DirEntry::Dir(Dir::new(
+                "blog",
+                &[DirEntry::File(File::new(
+                    "blog/index.md",
+                    b"---\nlayout: post\n---\n",
+                ))],
+            ))],
+        );
+        static MISPLACED: Dir = Dir::new(
+            "",
+            &[DirEntry::File(File::new(
+                "a.md",
+                b"---\ndefault_layout: post\n---\n",
+            ))],
+        );
+        assert!(load_from(&UNKNOWN, layouts()).is_err(), "unknown name");
+        assert!(
+            load_from(&WRONG_KIND, layouts()).is_err(),
+            "doc template on a listing"
+        );
+        assert!(
+            load_from(&MISPLACED, layouts()).is_err(),
+            "default_* only in index.md"
+        );
+    }
+
+    #[test]
+    fn strips_only_a_leading_h1() {
+        assert_eq!(strip_leading_h1("# Title\n\nBody.\n").trim(), "Body.");
+        assert_eq!(
+            strip_leading_h1("Intro.\n\n# Later\n"),
+            "Intro.\n\n# Later\n"
+        );
+        assert_eq!(strip_leading_h1("## Sub\n"), "## Sub\n");
+    }
+
     #[test]
     fn route_clash_fails() {
         static CLASH: Dir = Dir::new(
@@ -910,18 +1195,18 @@ mod tests {
                 DirEntry::Dir(Dir::new("blog", &[])),
             ],
         );
-        assert!(load_from(&CLASH, &[]).is_err());
+        assert!(load_from(&CLASH, Registry::default()).is_err());
     }
 
     #[test]
     fn bad_name_fails() {
         static BAD: Dir = Dir::new("", &[DirEntry::File(File::new("Bad Name.md", b"x"))]);
-        assert!(load_from(&BAD, &[]).is_err());
+        assert!(load_from(&BAD, Registry::default()).is_err());
     }
 
     #[test]
     fn real_content_loads() -> Result<(), String> {
-        let c = load(&[])?;
+        let c = load(crate::routes::registry())?;
         assert!(c.home.is_some(), "content/index.md is the home page");
         assert!(c.docs.iter().any(|d| d.path == "/code/inkpot"));
         Ok(())

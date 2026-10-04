@@ -9,7 +9,7 @@ use axum::{
     routing::{MethodRouter, get},
 };
 
-use crate::content::Content;
+use crate::content::{Content, Registry};
 use crate::handlers::{assets, count, echo};
 use crate::view;
 
@@ -24,10 +24,15 @@ const REGISTERED: [(&str, Factory); 3] = [
     ("/echo", echo::route),
 ];
 
-// Paths owned by registered routes. Content is loaded against these, and
-// registered routes win: content at one of them is skipped with a warning.
-pub fn reserved() -> Vec<&'static str> {
-    REGISTERED.iter().map(|(path, _)| *path).collect()
+// Everything content is loaded against: paths owned by registered routes
+// (which win — content at one of them is skipped with a warning) and the
+// template names content may select.
+pub fn registry() -> Registry {
+    Registry {
+        routes: REGISTERED.iter().map(|(path, _)| *path).collect(),
+        doc_layouts: view::doc_layouts(),
+        index_layouts: view::index_layouts(),
+    }
 }
 
 // Build the router: one route per discovered doc and per directory listing
@@ -91,7 +96,7 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     fn test_app() -> Result<Router, String> {
-        Ok(app(&Arc::new(crate::content::load(&reserved())?)))
+        Ok(app(&Arc::new(crate::content::load(registry())?)))
     }
 
     async fn body_string(res: Response) -> Result<String, Box<dyn std::error::Error>> {
@@ -179,7 +184,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_doc_and_listing_is_served() -> TestResult {
-        let content = Arc::new(crate::content::load(&reserved())?);
+        let content = Arc::new(crate::content::load(registry())?);
         let app = app(&content);
         let paths = content
             .docs
@@ -205,6 +210,21 @@ mod tests {
             body.contains(r#"<a href="/code/inkpot">Inkpot</a>"#),
             "{body}"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn post_layout_renders_title_once_with_byline() -> TestResult {
+        // content/blog/index.md sets `default_layout: post`.
+        let req = Request::builder()
+            .uri("/blog/hello-world")
+            .body(Body::empty())?;
+        let body = body_string(test_app()?.oneshot(req).await?).await?;
+        assert!(
+            body.contains(r#"<article><h1>Hello, World!</h1><p><time datetime="2026-10-04">"#),
+            "{body}"
+        );
+        assert_eq!(body.matches("<h1>").count(), 1, "title not repeated");
         Ok(())
     }
 
