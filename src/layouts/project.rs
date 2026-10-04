@@ -40,8 +40,8 @@ fn text(doc: &Doc) -> Text<'static> {
 // "Rust · thombruce/inkpot", the repo linked to GitHub; empty if neither key
 // is set. Shared with the `projects` listing.
 pub(super) fn details_html(meta: &BTreeMap<String, String>) -> Markup {
-    let language = meta.get("language");
-    let repo = meta.get("repo");
+    let language = value(meta, "language");
+    let repo = value(meta, "repo");
     html! {
         @if language.is_some() || repo.is_some() {
             p {
@@ -57,16 +57,46 @@ pub(super) fn details_html(meta: &BTreeMap<String, String>) -> Markup {
 
 // The same details as plain text; None if neither key is set.
 pub(super) fn details_text(meta: &BTreeMap<String, String>) -> Option<String> {
-    let parts: Vec<&str> = [meta.get("language"), meta.get("repo")]
+    let parts: Vec<&str> = [value(meta, "language"), value(meta, "repo")]
         .into_iter()
         .flatten()
-        .map(String::as_str)
         .collect();
     (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
+// A frontmatter value, treating an empty one (`language:`) as unset, so it
+// leaves no blank line or dangling separator.
+fn value<'a>(meta: &'a BTreeMap<String, String>, key: &str) -> Option<&'a str> {
+    meta.get(key).map(String::as_str).filter(|v| !v.is_empty())
 }
 
 // `owner/name` → its GitHub URL. Always prefixed, so frontmatter can't
 // inject another scheme into the href.
 fn github_url(repo: &str) -> String {
     format!("https://github.com/{repo}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{details_html, details_text};
+    use std::collections::BTreeMap;
+
+    fn meta(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn empty_values_count_as_unset() {
+        assert_eq!(details_text(&meta(&[("language", "")])), None);
+        assert_eq!(
+            details_text(&meta(&[("language", ""), ("repo", "a/b")])).as_deref(),
+            Some("a/b")
+        );
+        assert_eq!(details_html(&meta(&[("language", "")])).into_string(), "");
+        let html = details_html(&meta(&[("language", ""), ("repo", "a/b")])).into_string();
+        assert!(!html.contains('·'), "no dangling separator: {html}");
+    }
 }
