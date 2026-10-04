@@ -23,7 +23,7 @@ pub fn route(content: Arc<Content>) -> MethodRouter {
                 )
             })
             .collect();
-        let html = view::echo_page(&method, &path, &headers, &content.pages);
+        let html = view::echo_page(&method, &path, &headers, &content.nav);
         async move { Html(html) }
     })
 }

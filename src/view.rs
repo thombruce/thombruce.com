@@ -4,17 +4,7 @@
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use pulldown_cmark::{Parser, html::push_html};
 
-use crate::content::{Page, Post};
-
-// Nav links, in page order — generated from the discovered pages, with the Blog
-// section appended, so adding a page updates the nav everywhere with no edit here.
-fn nav_links(pages: &[Page]) -> Vec<(&str, &str)> {
-    pages
-        .iter()
-        .map(|p| (p.path.as_str(), p.nav.as_str()))
-        .chain(std::iter::once(("/blog", "Blog")))
-        .collect()
-}
+use crate::content::{Doc, Listing, NavLink};
 
 // Markdown -> HTML string.
 fn markdown(body: &str) -> String {
@@ -24,7 +14,8 @@ fn markdown(body: &str) -> String {
 }
 
 // Shared HTML shell: doctype, head (stylesheet), generated nav, main content.
-fn shell(title: &str, body: &Markup, nav: &[(&str, &str)]) -> Markup {
+// The nav is derived from content (`nav` frontmatter), so it stays in sync.
+fn shell(title: &str, body: &Markup, nav: &[NavLink]) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -36,9 +27,9 @@ fn shell(title: &str, body: &Markup, nav: &[(&str, &str)]) -> Markup {
             }
             body {
                 nav {
-                    @for (i, (path, label)) in nav.iter().enumerate() {
+                    @for (i, link) in nav.iter().enumerate() {
                         @if i > 0 { " · " }
-                        a href=(path) { (label) }
+                        a href=(link.path) { (link.label) }
                     }
                 }
                 main {
@@ -49,19 +40,24 @@ fn shell(title: &str, body: &Markup, nav: &[(&str, &str)]) -> Markup {
     }
 }
 
-// A page rendered to a full HTML document (nav reflects all pages).
-pub fn render_page(page: &Page, pages: &[Page]) -> String {
+// A doc rendered to a full HTML document: its date (if any), then the body.
+pub fn doc_page(doc: &Doc, nav: &[NavLink]) -> String {
     shell(
-        &page.title,
-        &PreEscaped(markdown(&page.body)),
-        &nav_links(pages),
+        &doc.title,
+        &html! {
+            @if let Some(date) = doc.date() {
+                p { time datetime=(date) { (date) } }
+            }
+            (PreEscaped(markdown(&doc.body)))
+        },
+        nav,
     )
     .into_string()
 }
 
 // /count — the visit counter, rendered fresh each request. Demonstrates
 // server-side state: the number changes on refresh, which no static page can.
-pub fn count_page(count: u64, pages: &[Page]) -> String {
+pub fn count_page(count: u64, nav: &[NavLink]) -> String {
     shell(
         "Count",
         &html! {
@@ -74,14 +70,19 @@ pub fn count_page(count: u64, pages: &[Page]) -> String {
             }
             p { "Refresh — the number goes up. The static pages can’t do that; they’re baked once at startup." }
         },
-        &nav_links(pages),
+        nav,
     )
     .into_string()
 }
 
 // /echo — the request reflected back, rendered server-side. Demonstrates
 // request-awareness: static pages ignore the request entirely.
-pub fn echo_page(method: &str, path: &str, headers: &[(String, String)], pages: &[Page]) -> String {
+pub fn echo_page(
+    method: &str,
+    path: &str,
+    headers: &[(String, String)],
+    nav: &[NavLink],
+) -> String {
     shell(
         "Echo",
         &html! {
@@ -95,55 +96,45 @@ pub fn echo_page(method: &str, path: &str, headers: &[(String, String)], pages: 
                 }
             }
         },
-        &nav_links(pages),
+        nav,
     )
     .into_string()
 }
 
-// /blog — the post index, newest first (posts arrive pre-sorted). Each entry
-// links to its /blog/<slug> page.
-pub fn blog_index(posts: &[Post], pages: &[Page]) -> String {
+// A directory listing: its intro (or title, if it has none), then its entries
+// — title, plus date when present. Entries arrive pre-sorted.
+pub fn listing_page(listing: &Listing, nav: &[NavLink]) -> String {
     shell(
-        "Blog",
+        &listing.title,
         &html! {
-            h1 { "Blog" }
-            @if posts.is_empty() {
+            @if listing.intro.trim().is_empty() {
+                h1 { (listing.title) }
+            } @else {
+                (PreEscaped(markdown(&listing.intro)))
+            }
+            @if listing.entries.is_empty() {
                 p { "Nothing here yet." }
             } @else {
                 ul {
-                    @for post in posts {
+                    @for entry in &listing.entries {
                         li {
-                            a href=(format!("/blog/{}", post.slug)) { (post.title) }
-                            " — "
-                            time datetime=(post.date) { (post.date) }
+                            a href=(entry.path) { (entry.title) }
+                            @if let Some(date) = &entry.date {
+                                " — "
+                                time datetime=(date) { (date) }
+                            }
                         }
                     }
                 }
             }
         },
-        &nav_links(pages),
-    )
-    .into_string()
-}
-
-// /blog/<slug> — a single post: title, date, then the rendered Markdown body.
-pub fn post_page(post: &Post, pages: &[Page]) -> String {
-    shell(
-        &post.title,
-        &html! {
-            article {
-                h1 { (post.title) }
-                p { time datetime=(post.date) { (post.date) } }
-                (PreEscaped(markdown(&post.body)))
-            }
-        },
-        &nav_links(pages),
+        nav,
     )
     .into_string()
 }
 
 // The 404 document, sharing the same shell and nav.
-pub fn not_found(pages: &[Page]) -> String {
+pub fn not_found(nav: &[NavLink]) -> String {
     shell(
         "Not Found",
         &html! {
@@ -151,7 +142,7 @@ pub fn not_found(pages: &[Page]) -> String {
             p { "That page doesn’t exist." }
             p { a href="/" { "Go home" } }
         },
-        &nav_links(pages),
+        nav,
     )
     .into_string()
 }
