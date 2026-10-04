@@ -2,7 +2,6 @@
 title: Home
 nav: Home
 order: 0
-path: /
 ---
 # Thom Bruce
 

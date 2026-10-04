@@ -2,7 +2,6 @@
 title: Contact
 nav: Contact
 order: 3
-path: /contact
 ---
 # Contact
 

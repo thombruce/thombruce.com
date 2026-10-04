@@ -17,7 +17,7 @@ pub fn route(content: Arc<Content>) -> MethodRouter {
         // fetch_add returns the previous value; +1 (saturating, to satisfy the
         // arithmetic-side-effects lint) is this visit's count.
         let count = counter.fetch_add(1, Ordering::Relaxed).saturating_add(1);
-        let html = view::count_page(count, &content.pages);
+        let html = view::count_page(count, &content.nav);
         async move { Html(html) }
     })
 }

@@ -2,7 +2,6 @@
 title: Colophon
 nav: Colophon
 order: 2
-path: /colophon
 ---
 # Colophon
 

@@ -1,14 +1,14 @@
 //! SSH frontend — serves the site as a ratatui TUI over SSH.
 //!
-//! Three screens, each a scrollable text view with a key-hint footer:
-//! - **Page** — a static page, reached by its nav key (first free letter of its
-//!   label; collisions fall through). `Blog` is one of these nav targets.
-//! - `BlogIndex` — a paginated post list (10/page); digits `1`-`9`/`0` open an
-//!   entry, `>`/`<` page, `h` home.
-//! - **Post** — a single post; `b` back to the index.
+//! Two screens, each a scrollable text view with a key-hint footer:
+//! - **Doc** — a single document. At the content root the footer shows the nav
+//!   (each entry's key is the first free letter of its label; collisions fall
+//!   through). Nested docs show `b` back to their listing, `h` home.
+//! - **Listing** — a directory's paginated entries (10/page); digits `1`-`9`/`0`
+//!   open an entry (doc or subdirectory), `>`/`<` page, `b` up, `h` home.
 //!
-//! Nav and lists derive from the discovered content, so adding a page or post
-//! needs no change here. Rendered by ratatui through a `CrosstermBackend`
+//! Nav and lists derive from the discovered content, so adding content needs
+//! no change here. Rendered by ratatui through a `CrosstermBackend`
 //! writing ANSI into a `Vec`, flushed down the SSH channel after every
 //! `Terminal::draw`; ratatui buys us scrolling (arrows / space / PageUp-Down)
 //! and resize handling. Terminal size comes from the PTY request and is kept
@@ -29,7 +29,7 @@ use russh::server::ChannelOpenHandle;
 use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::{Channel, ChannelId, Pty};
 
-use crate::content::{Content, Page, Post};
+use crate::content::{Content, Doc, Listing, NavLink, Target};
 
 // Clear the screen and home the cursor (erase display, cursor to top-left).
 const CLEAR: &[u8] = b"\x1b[2J\x1b[H";
@@ -69,7 +69,7 @@ impl Server for AppServer {
             content: self.content.clone(),
             size: (80, 24),
             term: None,
-            app: App::new(),
+            app: App::new(self.content.home.unwrap_or(0)),
         }
     }
 }
@@ -85,16 +85,16 @@ struct Conn {
     app: App,
 }
 
-// Posts shown per blog-index page; digits 1-9 then 0 select the ten slots.
+// Entries shown per listing page; digits 1-9 then 0 select the ten slots.
 const PAGE_SIZE: usize = 10;
 
-// Which screen the session is showing. Indices point into content.pages /
-// content.posts; the blog list's current page is App.blog_page.
+// Which screen the session is showing, as an index into content.docs /
+// content.listings; a listing's current page is App.list_page, which belongs
+// to listing App.list_of.
 #[derive(Clone, Copy)]
 enum Screen {
-    Page(usize),
-    BlogIndex,
-    Post(usize),
+    Doc(usize),
+    Listing(usize),
 }
 
 // UI state, kept separate from the SSH plumbing so its navigation logic is
@@ -102,54 +102,64 @@ enum Screen {
 // each render so key handling can page/clamp scrolling against the real layout.
 struct App {
     screen: Screen,
-    blog_page: usize,
+    home: usize,
+    list_page: usize,
+    list_of: usize,
     scroll: u16,
     content_h: u16,
     content_lines: u16,
 }
 
 impl App {
-    const fn new() -> Self {
+    const fn new(home: usize) -> Self {
         Self {
-            screen: Screen::Page(0),
-            blog_page: 0,
+            screen: Screen::Doc(home),
+            home,
+            list_page: 0,
+            list_of: 0,
             scroll: 0,
             content_h: 0,
             content_lines: 0,
         }
     }
 
-    const fn open_page(&mut self, idx: usize) {
-        self.screen = Screen::Page(idx);
+    // Open a doc, or enter a listing fresh at its first page.
+    const fn open(&mut self, target: Target) {
+        self.screen = match target {
+            Target::Doc(idx) => Screen::Doc(idx),
+            Target::Listing(idx) => {
+                self.list_page = 0;
+                self.list_of = idx;
+                Screen::Listing(idx)
+            }
+        };
         self.scroll = 0;
     }
 
-    // Enter the blog index fresh (from nav), resetting to the first list page.
-    const fn open_blog(&mut self) {
-        self.screen = Screen::BlogIndex;
-        self.blog_page = 0;
+    // Return from a doc to its listing, keeping the list page we came from —
+    // unless that page belonged to a different listing (the doc was reached
+    // some other way, e.g. by nav key), in which case start at its first page.
+    const fn back_to_listing(&mut self, idx: usize) {
+        if self.list_of != idx {
+            self.list_page = 0;
+            self.list_of = idx;
+        }
+        self.screen = Screen::Listing(idx);
         self.scroll = 0;
     }
 
-    // Return to the blog index from a post, keeping the list page we came from.
-    const fn back_to_blog(&mut self) {
-        self.screen = Screen::BlogIndex;
-        self.scroll = 0;
+    const fn go_home(&mut self) {
+        self.open(Target::Doc(self.home));
     }
 
-    const fn open_post(&mut self, idx: usize) {
-        self.screen = Screen::Post(idx);
-        self.scroll = 0;
-    }
-
-    const fn next_blog_page(&mut self, post_count: usize) {
-        if self.blog_page.saturating_add(1).saturating_mul(PAGE_SIZE) < post_count {
-            self.blog_page = self.blog_page.saturating_add(1);
+    const fn next_list_page(&mut self, entry_count: usize) {
+        if self.list_page.saturating_add(1).saturating_mul(PAGE_SIZE) < entry_count {
+            self.list_page = self.list_page.saturating_add(1);
         }
     }
 
-    const fn prev_blog_page(&mut self) {
-        self.blog_page = self.blog_page.saturating_sub(1);
+    const fn prev_list_page(&mut self) {
+        self.list_page = self.list_page.saturating_sub(1);
     }
 
     fn scroll_down(&mut self, step: u16) {
@@ -304,12 +314,6 @@ impl Handler for Conn {
     }
 }
 
-// A single navigation target reachable from the Page screen's footer keys.
-enum Target {
-    Page(usize),
-    Blog,
-}
-
 impl Conn {
     // Create the terminal on first use, sized to the PTY. A Fixed viewport uses
     // our size directly and never queries the (server-side) tty for dimensions.
@@ -352,86 +356,65 @@ impl Conn {
 
     // Handle one non-escape byte, dispatched by the current screen. Returns
     // whether it changed anything (so the caller knows to redraw). Space pages
-    // the scrollable screens down; other keys are screen-specific.
+    // docs down; other keys are screen-specific.
     fn handle_key(&mut self, b: u8) -> bool {
         let step = self.app.content_h.max(1);
-        let posts = self.content.posts.len();
         match self.app.screen {
-            Screen::Page(_) => match b {
-                b' ' => {
-                    self.app.scroll_down(step);
-                    true
+            Screen::Doc(idx) => {
+                let parent = self.content.docs.get(idx).and_then(|d| d.parent);
+                match (b, parent) {
+                    (b' ', _) => self.app.scroll_down(step),
+                    // 'b' or Esc returns to the doc's listing; 'h' goes home.
+                    (b'b' | 0x1b, Some(p)) => self.app.back_to_listing(p),
+                    (b'h', Some(_)) => self.app.go_home(),
+                    // At the root, a nav key jumps to its doc or listing.
+                    (_, None) => match self.nav_key_target(char::from(b).to_ascii_lowercase()) {
+                        Some(target) => self.app.open(target),
+                        None => return false,
+                    },
+                    _ => return false,
                 }
-                // A nav key jumps to a page or the blog index.
-                _ => match self.nav_key_target(char::from(b).to_ascii_lowercase()) {
-                    Some(Target::Page(idx)) => {
-                        self.app.open_page(idx);
-                        true
-                    }
-                    Some(Target::Blog) => {
-                        self.app.open_blog();
-                        true
-                    }
-                    None => false,
-                },
-            },
-            Screen::BlogIndex => match b {
-                b'>' | b'.' => {
-                    self.app.next_blog_page(posts);
-                    true
-                }
-                b'<' | b',' => {
-                    self.app.prev_blog_page();
-                    true
-                }
-                // 'h' or Esc leaves the index for the home page.
-                b'h' | 0x1b => {
-                    self.app.open_page(0);
-                    true
-                }
-                // A digit opens the matching entry on the current list page.
-                _ => match digit_offset(b) {
-                    Some(off) => {
-                        let idx = self
-                            .app
-                            .blog_page
-                            .saturating_mul(PAGE_SIZE)
-                            .saturating_add(off);
-                        if idx < posts {
-                            self.app.open_post(idx);
-                            true
-                        } else {
-                            false
+            }
+            Screen::Listing(idx) => {
+                let Some(listing) = self.content.listings.get(idx) else {
+                    return false;
+                };
+                match b {
+                    b'>' | b'.' => self.app.next_list_page(listing.entries.len()),
+                    b'<' | b',' => self.app.prev_list_page(),
+                    // 'b' or Esc goes up a level (home from a top-level listing).
+                    b'b' | 0x1b => match listing.parent {
+                        Some(p) => self.app.open(Target::Listing(p)),
+                        None => self.app.go_home(),
+                    },
+                    b'h' => self.app.go_home(),
+                    // A digit opens the matching entry on the current list page.
+                    _ => {
+                        let entry = digit_offset(b).and_then(|off| {
+                            listing.entries.get(
+                                self.app
+                                    .list_page
+                                    .saturating_mul(PAGE_SIZE)
+                                    .saturating_add(off),
+                            )
+                        });
+                        match entry {
+                            Some(e) => self.app.open(e.target),
+                            None => return false,
                         }
                     }
-                    None => false,
-                },
-            },
-            Screen::Post(_) => match b {
-                b' ' => {
-                    self.app.scroll_down(step);
-                    true
                 }
-                // 'b' or Esc returns to the blog index.
-                b'b' | 0x1b => {
-                    self.app.back_to_blog();
-                    true
-                }
-                _ => false,
-            },
+            }
         }
+        true
     }
 
-    // Resolve a nav key to its target: one of the static pages, or the blog index.
+    // Resolve a nav key to the doc or listing it opens.
     fn nav_key_target(&self, key: char) -> Option<Target> {
-        let idx = nav_keys(&self.content.pages)
+        let idx = nav_keys(&self.content.nav)
             .iter()
             .position(|k| *k == Some(key))?;
-        if idx < self.content.pages.len() {
-            Some(Target::Page(idx))
-        } else {
-            Some(Target::Blog)
-        }
+        self.content.nav.get(idx).map(|n| n.target)
     }
 }
 
@@ -477,22 +460,20 @@ const MAX_FOOTER_LINES: u16 = 3;
 fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
     // Body text and footer both depend on which screen we're on.
     let (text, foot_text) = match app.screen {
-        Screen::Page(idx) => (
-            content
-                .pages
-                .get(idx)
-                .map(|p| render_text(&p.body))
-                .unwrap_or_default(),
-            page_footer(&content.pages),
+        Screen::Doc(idx) => content.docs.get(idx).map_or_else(
+            || (String::new(), nav_footer(&content.nav)),
+            |doc| (doc_text(doc), doc_footer(doc, content)),
         ),
-        Screen::BlogIndex => (
-            blog_index_text(&content.posts, app.blog_page),
-            blog_footer(&content.posts, app.blog_page),
-        ),
-        Screen::Post(idx) => (
-            content.posts.get(idx).map(post_text).unwrap_or_default(),
-            "[b] blog   [space] scroll   [q] quit".to_owned(),
-        ),
+        Screen::Listing(idx) => content
+            .listings
+            .get(idx)
+            .map(|l| {
+                (
+                    listing_text(l, app.list_page),
+                    listing_footer(l, app.list_page),
+                )
+            })
+            .unwrap_or_default(),
     };
 
     // Footer spans the full terminal width (not the reading column) and wraps
@@ -546,25 +527,21 @@ fn assign_keys(labels: &[&str]) -> Vec<Option<char>> {
         .collect()
 }
 
-// Nav keys for the Page screen: one per static page, plus a trailing "Blog"
-// target. The returned vec is aligned with `pages` followed by Blog (last).
-fn nav_keys(pages: &[Page]) -> Vec<Option<char>> {
-    let mut labels: Vec<&str> = pages.iter().map(|p| p.nav.as_str()).collect();
-    labels.push("Blog");
+// Nav keys, aligned with the content's nav entries.
+fn nav_keys(nav: &[NavLink]) -> Vec<Option<char>> {
+    let labels: Vec<&str> = nav.iter().map(|n| n.label.as_str()).collect();
     assign_keys(&labels)
 }
 
-// Page-screen footer: each nav key + label (pages then Blog), then scroll/quit.
-fn page_footer(pages: &[Page]) -> String {
-    let mut labels: Vec<&str> = pages.iter().map(|p| p.nav.as_str()).collect();
-    labels.push("Blog");
+// Root-doc footer: each nav key + label, then scroll/quit.
+fn nav_footer(nav: &[NavLink]) -> String {
     let mut out = String::new();
-    for (label, key) in labels.iter().zip(nav_keys(pages)) {
+    for (link, key) in nav.iter().zip(nav_keys(nav)) {
         if let Some(key) = key {
             out.push('[');
             out.push(key);
             out.push_str("] ");
-            out.push_str(&label.to_lowercase());
+            out.push_str(&link.label.to_lowercase());
             out.push_str("  ");
         }
     }
@@ -572,52 +549,85 @@ fn page_footer(pages: &[Page]) -> String {
     out
 }
 
-// The blog index body: a header and the current page's 10 numbered entries.
-fn blog_index_text(posts: &[Post], blog_page: usize) -> String {
+// A doc's footer: the nav at the root; otherwise back to its listing, and home.
+fn doc_footer(doc: &Doc, content: &Content) -> String {
+    doc.parent
+        .and_then(|p| content.listings.get(p))
+        .map_or_else(
+            || nav_footer(&content.nav),
+            |listing| {
+                format!(
+                    "[b] {}  [h] home  [space] scroll  [q] quit",
+                    listing.title.to_lowercase()
+                )
+            },
+        )
+}
+
+// A listing's body: its intro (or title), then the current page's numbered
+// entries, with a page counter when there's more than one page.
+fn listing_text(listing: &Listing, list_page: usize) -> String {
     use std::fmt::Write as _;
-    if posts.is_empty() {
-        return "Blog\n\nNo posts yet.".to_owned();
+    let mut out = if listing.intro.trim().is_empty() {
+        listing.title.clone()
+    } else {
+        render_text(&listing.intro)
+    };
+    out.push_str("\n\n");
+    if listing.entries.is_empty() {
+        out.push_str("Nothing here yet.");
+        return out;
     }
-    let total_pages = posts.len().div_ceil(PAGE_SIZE).max(1);
-    let start = blog_page.saturating_mul(PAGE_SIZE);
-    let mut out = format!(
-        "Blog — page {}/{}\n\n",
-        blog_page.saturating_add(1),
-        total_pages
-    );
-    for (i, post) in posts.iter().skip(start).take(PAGE_SIZE).enumerate() {
+    let total_pages = listing.entries.len().div_ceil(PAGE_SIZE);
+    // Writing to a String is infallible; discard the formatter Results.
+    if total_pages > 1 {
+        let _ = writeln!(out, "Page {}/{total_pages}\n", list_page.saturating_add(1));
+    }
+    let start = list_page.saturating_mul(PAGE_SIZE);
+    for (i, entry) in listing
+        .entries
+        .iter()
+        .skip(start)
+        .take(PAGE_SIZE)
+        .enumerate()
+    {
         // Slot labels are 1-9 then 0 for the tenth, matching digit_offset.
         let slot = if i == 9 { 0 } else { i.saturating_add(1) };
-        // Writing to a String is infallible; discard the formatter Result.
-        let _ = writeln!(out, "  {slot}. {}  ({})", post.title, post.date);
+        let _ = write!(out, "  {slot}. {}", entry.title);
+        if let Some(date) = &entry.date {
+            let _ = write!(out, "  ({date})");
+        }
+        out.push('\n');
     }
     out
 }
 
-// Blog-index footer: entry-open hint, prev/next only when a page exists there.
-fn blog_footer(posts: &[Post], blog_page: usize) -> String {
-    if posts.is_empty() {
-        return "[h] home  [q] quit".to_owned();
+// Listing footer: open/paging hints only where they apply.
+fn listing_footer(listing: &Listing, list_page: usize) -> String {
+    let mut out = String::new();
+    if !listing.entries.is_empty() {
+        out.push_str("[1-0] open  ");
     }
-    let mut out = String::from("[1-0] open  ");
-    if blog_page > 0 {
+    if list_page > 0 {
         out.push_str("[<] prev  ");
     }
-    if blog_page.saturating_add(1).saturating_mul(PAGE_SIZE) < posts.len() {
+    if list_page.saturating_add(1).saturating_mul(PAGE_SIZE) < listing.entries.len() {
         out.push_str("[>] next  ");
+    }
+    if listing.parent.is_some() {
+        out.push_str("[b] back  ");
     }
     out.push_str("[h] home  [q] quit");
     out
 }
 
-// A post rendered for the terminal: title, date, then the body as plain text.
-fn post_text(post: &Post) -> String {
-    format!(
-        "{}\n{}\n\n{}",
-        post.title,
-        post.date,
-        render_text(&post.body)
-    )
+// A doc rendered for the terminal: its date (if any), then the body as text.
+fn doc_text(doc: &Doc) -> String {
+    let body = render_text(&doc.body);
+    match doc.date() {
+        Some(date) => format!("{date}\n\n{body}"),
+        None => body,
+    }
 }
 
 // Markdown -> plain text. Drops syntax markers; blocks separated by blank
@@ -643,40 +653,83 @@ fn render_text(markdown: &str) -> String {
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
     use super::{
-        App, CLEAR, Content, Page, Post, Screen, blog_index_text, csi_end, digit_offset, dim,
-        nav_keys, page_footer, post_text, render_text, ui,
+        App, CLEAR, Content, Doc, Listing, NavLink, Screen, Target, csi_end, digit_offset, dim,
+        doc_text, listing_footer, listing_text, nav_footer, nav_keys, render_text, ui,
     };
+    use crate::content::Entry;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
-    fn page(nav: &str, body: &str) -> Page {
-        Page {
-            title: nav.to_owned(),
-            nav: nav.to_owned(),
-            order: 0,
-            path: String::new(),
-            body: body.to_owned(),
-        }
-    }
-
-    fn post(title: &str, date: &str) -> Post {
-        Post {
+    fn doc(title: &str, body: &str, date: Option<&str>, parent: Option<usize>) -> Doc {
+        Doc {
+            path: format!("/{}", title.to_ascii_lowercase()),
             title: title.to_owned(),
-            date: date.to_owned(),
-            slug: title.to_ascii_lowercase(),
-            body: format!("Body of {title}."),
+            meta: date
+                .map(|d| ("date".to_owned(), d.to_owned()))
+                .into_iter()
+                .collect(),
+            body: body.to_owned(),
+            parent,
         }
     }
 
-    // N posts named "Post 1".."Post N", newest-date first (as load() delivers).
-    fn posts(n: usize) -> Vec<Post> {
-        (0..n)
-            .map(|i| post(&format!("Post {i}"), "2025-01-01"))
+    fn nav(labels: &[&str]) -> Vec<NavLink> {
+        labels
+            .iter()
+            .enumerate()
+            .map(|(i, l)| NavLink {
+                label: (*l).to_owned(),
+                path: format!("/{}", l.to_ascii_lowercase()),
+                target: Target::Doc(i),
+            })
             .collect()
     }
 
-    fn content(pages: Vec<Page>, posts: Vec<Post>) -> Content {
-        Content { pages, posts }
+    // A listing of `n` entries titled "Post 0".."Post n-1", each targeting doc i.
+    fn listing(n: usize, parent: Option<usize>) -> Listing {
+        Listing {
+            path: "/blog".to_owned(),
+            title: "Blog".to_owned(),
+            intro: String::new(),
+            entries: (0..n)
+                .map(|i| Entry {
+                    title: format!("Post {i}"),
+                    path: format!("/blog/post-{i}"),
+                    date: Some("2025-01-01".to_owned()),
+                    target: Target::Doc(i),
+                })
+                .collect(),
+            parent,
+        }
+    }
+
+    // Home + About at the root, then a 12-post Blog listing (listing 0) whose
+    // entries are docs 2..14; nav: Home, About, Blog.
+    fn content() -> Content {
+        let mut docs = vec![
+            doc("Home", "# Welcome\n\nHello", None, None),
+            doc("About", "About me", None, None),
+        ];
+        let mut blog = listing(12, None);
+        for (i, entry) in blog.entries.iter_mut().enumerate() {
+            entry.target = Target::Doc(docs.len());
+            docs.push(doc(
+                &format!("Post {i}"),
+                "Body.",
+                Some("2025-01-01"),
+                Some(0),
+            ));
+        }
+        let mut links = nav(&["Home", "About", "Blog"]);
+        if let Some(b) = links.get_mut(2) {
+            b.target = Target::Listing(0);
+        }
+        Content {
+            docs,
+            listings: vec![blog],
+            nav: links,
+            home: Some(0),
+        }
     }
 
     #[test]
@@ -689,22 +742,19 @@ mod tests {
     }
 
     #[test]
-    fn page_footer_lists_keys_including_blog() {
-        let pages = vec![page("Home", ""), page("About", "")];
+    fn nav_footer_lists_keys() {
         assert_eq!(
-            page_footer(&pages),
+            nav_footer(&nav(&["Home", "About", "Blog"])),
             "[h] home  [a] about  [b] blog  [space] scroll  [q] quit"
         );
     }
 
     #[test]
-    fn nav_keys_resolve_collisions_and_append_blog() {
-        // Colophon takes 'c'; Contact falls through to 'o'; Blog gets 'b'.
-        let pages = vec![page("Colophon", ""), page("Contact", "")];
+    fn nav_keys_resolve_collisions() {
+        // Colophon takes 'c'; Contact falls through to 'o'; Code to 'd'.
         assert_eq!(
-            nav_keys(&pages),
-            vec![Some('c'), Some('o'), Some('b')],
-            "third key is the appended Blog target"
+            nav_keys(&nav(&["Colophon", "Contact", "Code"])),
+            vec![Some('c'), Some('o'), Some('d')]
         );
     }
 
@@ -729,57 +779,74 @@ mod tests {
     }
 
     #[test]
-    fn screen_transitions_reset_scroll() {
-        let mut app = App::new();
+    fn screen_transitions_reset_scroll_and_keep_list_page() {
+        let mut app = App::new(0);
         app.scroll = 4;
-        app.open_blog();
-        assert!(matches!(app.screen, Screen::BlogIndex));
-        assert_eq!(app.scroll, 0);
-        assert_eq!(app.blog_page, 0);
+        app.list_page = 3;
+        app.open(Target::Listing(1));
+        assert!(matches!(app.screen, Screen::Listing(1)));
+        assert_eq!((app.scroll, app.list_page), (0, 0), "listing entered fresh");
 
+        app.list_page = 1;
         app.scroll = 2;
-        app.open_post(3);
-        assert!(matches!(app.screen, Screen::Post(3)));
+        app.open(Target::Doc(3));
+        assert!(matches!(app.screen, Screen::Doc(3)));
         assert_eq!(app.scroll, 0);
+        app.back_to_listing(1);
+        assert_eq!(app.list_page, 1, "back keeps the page we came from");
+
+        // Back into a different listing than the page belonged to: first page.
+        app.back_to_listing(2);
+        assert!(matches!(app.screen, Screen::Listing(2)));
+        assert_eq!(app.list_page, 0, "stale page from another listing reset");
+
+        app.go_home();
+        assert!(matches!(app.screen, Screen::Doc(0)));
     }
 
     #[test]
-    fn blog_pagination_clamps_to_post_count() {
-        let mut app = App::new();
-        // 12 posts => two pages (0 and 1); can't advance past the last.
-        app.next_blog_page(12);
-        assert_eq!(app.blog_page, 1);
-        app.next_blog_page(12);
-        assert_eq!(app.blog_page, 1, "no page beyond the last");
-        app.prev_blog_page();
-        assert_eq!(app.blog_page, 0);
-        app.prev_blog_page();
-        assert_eq!(app.blog_page, 0, "no page before the first");
+    fn list_pagination_clamps_to_entry_count() {
+        let mut app = App::new(0);
+        // 12 entries => two pages (0 and 1); can't advance past the last.
+        app.next_list_page(12);
+        assert_eq!(app.list_page, 1);
+        app.next_list_page(12);
+        assert_eq!(app.list_page, 1, "no page beyond the last");
+        app.prev_list_page();
+        assert_eq!(app.list_page, 0);
+        app.prev_list_page();
+        assert_eq!(app.list_page, 0, "no page before the first");
     }
 
     #[test]
-    fn blog_index_empty_state() {
-        let body = blog_index_text(&[], 0);
-        assert!(body.contains("No posts yet"), "empty body message");
-        assert!(!body.contains("page 1/1"), "no page counter when empty");
-        let foot = super::blog_footer(&[], 0);
+    fn listing_empty_state() {
+        let empty = listing(0, None);
+        let body = listing_text(&empty, 0);
+        assert!(body.contains("Nothing here yet"), "empty body message");
+        assert!(!body.contains("Page 1"), "no page counter when empty");
         assert_eq!(
-            foot, "[h] home  [q] quit",
-            "no open/paging hints when empty"
+            listing_footer(&empty, 0),
+            "[h] home  [q] quit",
+            "no open/paging/back hints when empty at the top level"
         );
+        assert!(listing_footer(&listing(0, Some(0)), 0).contains("[b] back"));
     }
 
     #[test]
-    fn blog_index_numbers_current_page() {
-        let ps = posts(12);
-        let page0 = blog_index_text(&ps, 0);
-        assert!(page0.contains("page 1/2"), "header shows position");
-        assert!(page0.contains("1. Post 0"), "first slot is 1");
+    fn listing_numbers_current_page() {
+        let l = listing(12, None);
+        let page0 = listing_text(&l, 0);
+        assert!(page0.starts_with("Blog"), "titled when there's no intro");
+        assert!(page0.contains("Page 1/2"), "header shows position");
+        assert!(
+            page0.contains("1. Post 0  (2025-01-01)"),
+            "first slot is 1, dated"
+        );
         assert!(page0.contains("0. Post 9"), "tenth slot is 0");
         assert!(!page0.contains("Post 10"), "page 1 stops at ten entries");
 
-        let page1 = blog_index_text(&ps, 1);
-        assert!(page1.contains("page 2/2"));
+        let page1 = listing_text(&l, 1);
+        assert!(page1.contains("Page 2/2"));
         assert!(
             page1.contains("1. Post 10"),
             "second page continues numbering at 1"
@@ -788,7 +855,7 @@ mod tests {
 
     #[test]
     fn scroll_clamps_to_content() {
-        let mut app = App::new();
+        let mut app = App::new(0);
         app.content_h = 10;
         app.content_lines = 15; // max scroll = 5
         app.scroll_down(10);
@@ -812,26 +879,20 @@ mod tests {
     }
 
     #[test]
-    fn post_text_shows_title_and_date() {
-        let out = post_text(&post("Hello", "2025-06-01"));
-        assert!(out.starts_with("Hello\n2025-06-01"), "title then date");
-        assert!(out.contains("Body of Hello."));
+    fn doc_text_shows_date_when_present() {
+        let dated = doc_text(&doc("Hello", "Body.", Some("2025-06-01"), None));
+        assert!(dated.starts_with("2025-06-01\n\nBody."), "{dated}");
+        assert_eq!(doc_text(&doc("Hello", "Body.", None, None)), "Body.");
     }
 
     #[test]
     fn ui_renders_every_screen_without_panicking() {
-        let c = content(
-            vec![
-                page("Home", "# Welcome\n\nHello"),
-                page("About", "About me"),
-            ],
-            posts(12),
-        );
+        let c = content();
         // Each screen, at a normal and a degenerate size: layout math must not
         // panic (a clippy-denied subtraction underflow would surface here).
-        for screen in [Screen::Page(0), Screen::BlogIndex, Screen::Post(0)] {
+        for screen in [Screen::Doc(0), Screen::Listing(0), Screen::Doc(2)] {
             for (w, h) in [(60, 20), (1, 1)] {
-                let mut app = App::new();
+                let mut app = App::new(0);
                 app.screen = screen;
                 // TestBackend is infallible, so `match e {}` discharges the Result.
                 let mut term = Terminal::new(TestBackend::new(w, h)).unwrap_or_else(|e| match e {});
@@ -845,16 +906,13 @@ mod tests {
     // hint must still be on screen, with no "[k]" split from its label.
     #[test]
     fn footer_wraps_on_narrow_terminal() {
-        let c = content(
-            vec![
-                page("Home", ""),
-                page("About", ""),
-                page("Projects", ""),
-                page("Contact", ""),
-            ],
-            vec![],
-        );
-        let mut app = App::new();
+        let c = Content {
+            docs: vec![doc("Home", "", None, None)],
+            listings: vec![],
+            nav: nav(&["Home", "About", "Projects", "Contact"]),
+            home: Some(0),
+        };
+        let mut app = App::new(0);
         let mut term = Terminal::new(TestBackend::new(40, 10)).unwrap_or_else(|e| match e {});
         term.draw(|f| ui(f, &mut app, &c))
             .unwrap_or_else(|e| match e {});
@@ -872,16 +930,16 @@ mod tests {
     // Regression: the real CrosstermBackend render path (raw CLEAR + hide_cursor
     // + draw over a Fixed viewport) must succeed and emit content. Terminal::clear()
     // used to be here and errored with ENXIO on a headless server, killing the
-    // session before anything rendered. Also checks the blog index renders posts.
+    // session before anything rendered. Also checks a listing renders entries.
     #[test]
     fn crossterm_backend_renders_content() -> Result<(), russh::Error> {
         use ratatui::backend::CrosstermBackend;
         use ratatui::layout::Rect;
         use ratatui::{TerminalOptions, Viewport};
 
-        let c = content(vec![page("Home", "# Welcome\n\nHello there")], posts(12));
-        let mut app = App::new();
-        app.screen = Screen::BlogIndex;
+        let c = content();
+        let mut app = App::new(0);
+        app.screen = Screen::Listing(0);
         let mut term = Terminal::with_options(
             CrosstermBackend::new(Vec::new()),
             TerminalOptions {
@@ -897,9 +955,9 @@ mod tests {
         // assert on single-token words, which stay contiguous.
         let ansi = String::from_utf8_lossy(term.backend_mut().writer_mut());
         assert!(ansi.contains("\x1b[2J"), "clears the client screen");
-        assert!(ansi.contains("Blog"), "blog index header rendered");
-        assert!(ansi.contains("Post"), "a post entry rendered");
-        assert!(ansi.contains("open"), "blog footer hint rendered");
+        assert!(ansi.contains("Blog"), "listing header rendered");
+        assert!(ansi.contains("Post"), "an entry rendered");
+        assert!(ansi.contains("open"), "listing footer hint rendered");
         Ok(())
     }
 }

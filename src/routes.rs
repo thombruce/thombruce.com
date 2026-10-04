@@ -13,26 +13,26 @@ use crate::content::Content;
 use crate::handlers::{assets, count, echo};
 use crate::view;
 
-// Build the router: one route per discovered page and per blog post (all
-// pre-rendered at startup), the /blog index, the stylesheet, two dynamic
-// (per-request) pages, and a 404 fallback. Adding a page or post needs no edit
-// here — it appears once its file is in content/pages/ or content/blog/. The
-// dynamic pages carry their own logic in handlers/; here we just register them.
+// Build the router: one route per discovered doc and per directory listing
+// (all pre-rendered at startup), the stylesheet, two dynamic (per-request)
+// pages, and a 404 fallback. Adding content needs no edit here — routes derive
+// from the content/ tree. The dynamic pages carry their own logic in handlers/;
+// here we just register them.
+// ponytail: a content file at a registered path (e.g. content/count.md) makes
+// axum panic on the duplicate route — registered routes win, with a warning: #16.
 pub fn app(content: &Arc<Content>) -> Router {
+    let nav = &content.nav;
     let mut router = Router::new();
-    for page in &content.pages {
-        let html = view::render_page(page, &content.pages);
-        router = router.route(&page.path, get(serve_html(html)));
+    for doc in &content.docs {
+        router = router.route(&doc.path, get(serve_html(view::doc_page(doc, nav))));
     }
-    for post in &content.posts {
-        let html = view::post_page(post, &content.pages);
-        router = router.route(&format!("/blog/{}", post.slug), get(serve_html(html)));
+    for listing in &content.listings {
+        let html = view::listing_page(listing, nav);
+        router = router.route(&listing.path, get(serve_html(html)));
     }
 
-    let blog_index = view::blog_index(&content.posts, &content.pages);
-    let not_found = view::not_found(&content.pages);
+    let not_found = view::not_found(nav);
     router
-        .route("/blog", get(serve_html(blog_index)))
         .route("/style.css", get(assets::stylesheet))
         .route("/count", count::route(Arc::clone(content)))
         .route("/echo", echo::route(Arc::clone(content)))
@@ -164,33 +164,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn blog_index_and_posts_are_served() -> TestResult {
-        // Tolerates an empty blog: the index always 200s; the per-post route is
-        // only checked when there's a post to drive it.
-        let content = crate::content::load()?;
-        let first_slug = content.posts.first().map(|p| p.slug.clone());
-        let app = app(&Arc::new(content));
-
-        let index = app
-            .clone()
-            .oneshot(Request::builder().uri("/blog").body(Body::empty())?)
-            .await?;
-        assert_eq!(index.status(), StatusCode::OK);
-        let body = body_string(index).await?;
-
-        if let Some(slug) = first_slug {
-            assert!(body.contains("/blog/"), "index links posts");
-            let post = app
-                .oneshot(
-                    Request::builder()
-                        .uri(format!("/blog/{slug}"))
-                        .body(Body::empty())?,
-                )
+    async fn every_doc_and_listing_is_served() -> TestResult {
+        let content = Arc::new(crate::content::load()?);
+        let app = app(&content);
+        let paths = content
+            .docs
+            .iter()
+            .map(|d| &d.path)
+            .chain(content.listings.iter().map(|l| &l.path));
+        for path in paths {
+            let res = app
+                .clone()
+                .oneshot(Request::builder().uri(path).body(Body::empty())?)
                 .await?;
-            assert_eq!(post.status(), StatusCode::OK);
-        } else {
-            assert!(body.contains("Nothing here yet"), "empty-state message");
+            assert_eq!(res.status(), StatusCode::OK, "{path}");
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn listing_links_its_entries() -> TestResult {
+        // content/code/inkpot.md has no frontmatter; it's titled by its heading.
+        let req = Request::builder().uri("/code").body(Body::empty())?;
+        let body = body_string(test_app()?.oneshot(req).await?).await?;
+        assert!(
+            body.contains(r#"<a href="/code/inkpot">Inkpot</a>"#),
+            "{body}"
+        );
         Ok(())
     }
 
