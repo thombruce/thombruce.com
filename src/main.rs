@@ -5,6 +5,8 @@ use tokio::signal;
 
 mod content;
 mod handlers;
+mod layouts;
+mod markdown;
 mod routes;
 mod ssh;
 mod view;
