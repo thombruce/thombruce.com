@@ -6,20 +6,33 @@ use axum::{
     http::StatusCode,
     middleware::{Next, from_fn},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::get,
+    routing::{MethodRouter, get},
 };
 
 use crate::content::Content;
 use crate::handlers::{assets, count, echo};
 use crate::view;
 
+// Routes registered in code: the stylesheet and the dynamic (per-request)
+// pages, each built from the loaded content. Their logic lives in handlers/.
+// This table is the single source for both the router and `reserved()`, so
+// content can never claim a path the router also registers.
+type Factory = fn(Arc<Content>) -> MethodRouter;
+const REGISTERED: [(&str, Factory); 3] = [
+    ("/style.css", |_| get(assets::stylesheet)),
+    ("/count", count::route),
+    ("/echo", echo::route),
+];
+
+// Paths owned by registered routes. Content is loaded against these, and
+// registered routes win: content at one of them is skipped with a warning.
+pub fn reserved() -> Vec<&'static str> {
+    REGISTERED.iter().map(|(path, _)| *path).collect()
+}
+
 // Build the router: one route per discovered doc and per directory listing
-// (all pre-rendered at startup), the stylesheet, two dynamic (per-request)
-// pages, and a 404 fallback. Adding content needs no edit here — routes derive
-// from the content/ tree. The dynamic pages carry their own logic in handlers/;
-// here we just register them.
-// ponytail: a content file at a registered path (e.g. content/count.md) makes
-// axum panic on the duplicate route — registered routes win, with a warning: #16.
+// (all pre-rendered at startup), the registered routes, and a 404 fallback.
+// Adding content needs no edit here — routes derive from the content/ tree.
 pub fn app(content: &Arc<Content>) -> Router {
     let nav = &content.nav;
     let mut router = Router::new();
@@ -31,11 +44,12 @@ pub fn app(content: &Arc<Content>) -> Router {
         router = router.route(&listing.path, get(serve_html(html)));
     }
 
+    for (path, route) in REGISTERED {
+        router = router.route(path, route(Arc::clone(content)));
+    }
+
     let not_found = view::not_found(nav);
     router
-        .route("/style.css", get(assets::stylesheet))
-        .route("/count", count::route(Arc::clone(content)))
-        .route("/echo", echo::route(Arc::clone(content)))
         .fallback(move || {
             let html = not_found.clone();
             async move { (StatusCode::NOT_FOUND, Html(html)) }
@@ -77,7 +91,7 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     fn test_app() -> Result<Router, String> {
-        Ok(app(&Arc::new(crate::content::load()?)))
+        Ok(app(&Arc::new(crate::content::load(&reserved())?)))
     }
 
     async fn body_string(res: Response) -> Result<String, Box<dyn std::error::Error>> {
@@ -165,7 +179,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_doc_and_listing_is_served() -> TestResult {
-        let content = Arc::new(crate::content::load()?);
+        let content = Arc::new(crate::content::load(&reserved())?);
         let app = app(&content);
         let paths = content
             .docs
