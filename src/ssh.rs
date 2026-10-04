@@ -661,7 +661,7 @@ fn post_text(doc: &Doc) -> Text<'static> {
         ));
     }
     lines.push(Line::default());
-    lines.extend(Text::from(render_text(strip_leading_h1(&doc.body))).lines);
+    lines.extend(Text::from(render_text(&strip_leading_h1(&doc.body))).lines);
     Text::from(lines)
 }
 

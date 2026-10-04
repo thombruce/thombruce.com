@@ -631,8 +631,10 @@ fn first_h1(body: &str) -> Option<String> {
 
 // The body without its leading H1, for templates that render the title
 // themselves (so it isn't repeated). Unchanged if the body doesn't open with
-// an H1. The range of a heading's Start event spans the whole heading.
-pub fn strip_leading_h1(body: &str) -> &str {
+// an H1. The range of a heading's Start event spans just the heading, so only
+// it is cut: text before it that emits no events (link reference definitions)
+// is kept, or links using those definitions would break.
+pub fn strip_leading_h1(body: &str) -> String {
     match Parser::new(body).into_offset_iter().next() {
         Some((
             Event::Start(Tag::Heading {
@@ -640,8 +642,12 @@ pub fn strip_leading_h1(body: &str) -> &str {
                 ..
             }),
             range,
-        )) => body.get(range.end..).unwrap_or(body),
-        _ => body,
+        )) => {
+            let before = body.get(..range.start).unwrap_or_default();
+            let after = body.get(range.end..).unwrap_or_default();
+            format!("{before}{after}")
+        }
+        _ => body.to_owned(),
     }
 }
 
@@ -1184,6 +1190,10 @@ mod tests {
             "Intro.\n\n# Later\n"
         );
         assert_eq!(strip_leading_h1("## Sub\n"), "## Sub\n");
+        // Link reference definitions above the H1 emit no events; keep them.
+        let kept = strip_leading_h1("[src]: https://x.com\n\n# Title\n\nSee [src].\n");
+        assert!(!kept.contains("# Title"), "{kept}");
+        assert!(kept.contains("[src]: https://x.com"), "{kept}");
     }
 
     #[test]

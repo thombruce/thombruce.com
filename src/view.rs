@@ -89,7 +89,7 @@ fn post(doc: &Doc) -> Markup {
             @if let Some(date) = doc.date() {
                 p { time datetime=(date) { (date) } }
             }
-            (PreEscaped(markdown(strip_leading_h1(&doc.body))))
+            (PreEscaped(markdown(&strip_leading_h1(&doc.body))))
         }
     }
 }
