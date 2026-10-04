@@ -30,8 +30,8 @@ const REGISTERED: [(&str, Factory); 3] = [
 pub fn registry() -> Registry {
     Registry {
         routes: REGISTERED.iter().map(|(path, _)| *path).collect(),
-        doc_layouts: view::doc_layouts(),
-        index_layouts: view::index_layouts(),
+        doc_layouts: crate::layouts::doc_names(),
+        index_layouts: crate::layouts::index_names(),
     }
 }
 

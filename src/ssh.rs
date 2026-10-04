@@ -17,12 +17,11 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Text};
+use ratatui::text::Text;
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{Frame, TerminalOptions, Viewport};
 use russh::keys::{PrivateKey, ssh_key};
@@ -30,7 +29,9 @@ use russh::server::ChannelOpenHandle;
 use russh::server::{Auth, Config, Handler, Msg, Server, Session};
 use russh::{Channel, ChannelId, Pty};
 
-use crate::content::{Content, Doc, Entry, Listing, NavLink, Target, strip_leading_h1};
+use crate::content::{Content, Doc, Listing, NavLink, Target};
+use crate::layouts;
+use crate::markdown;
 
 // Clear the screen and home the cursor (erase display, cursor to top-left).
 const CLEAR: &[u8] = b"\x1b[2J\x1b[H";
@@ -467,7 +468,7 @@ fn ui(frame: &mut Frame, app: &mut App, content: &Content) {
     let (text, foot_text) = match app.screen {
         Screen::Doc(idx) => content.docs.get(idx).map_or_else(
             || (Text::default(), nav_footer(&content.nav)),
-            |doc| (doc_text(doc), doc_footer(doc, content)),
+            |doc| (layouts::doc_text(doc), doc_footer(doc, content)),
         ),
         Screen::Listing(idx) => content
             .listings
@@ -570,41 +571,14 @@ fn doc_footer(doc: &Doc, content: &Content) -> String {
 }
 
 // A listing's body: its intro (or title), then the current page's numbered
-// entries, with a page counter when there's more than one page.
-// A listing's text version can't replace the screen (its numbered slots are
-// what the digit keys select), so a listing template adds detail lines under
-// each entry instead. Same names as the HTML index templates (view.rs); a
-// listing without one shows bare entries.
-type EntryDetail = fn(&Entry, &Content) -> Vec<String>;
-const LISTING_TEXT_TEMPLATES: [(&str, EntryDetail); 1] = [("projects", project_detail)];
-
-// `projects`: the entry's language and repo (for docs), then its summary.
-fn project_detail(entry: &Entry, content: &Content) -> Vec<String> {
-    let details = content.doc_meta(entry.target).map(|meta| {
-        [meta.get("language"), meta.get("repo")]
-            .into_iter()
-            .flatten()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-            .join(" · ")
-    });
-    details
-        .filter(|d| !d.is_empty())
-        .into_iter()
-        .chain(content.summary(entry.target))
-        .collect()
-}
-
+// entries, with a page counter when there's more than one page. The listing's
+// layout may add detail lines under each entry (see layouts/).
 fn listing_text(listing: &Listing, list_page: usize, content: &Content) -> String {
     use std::fmt::Write as _;
-    let detail = LISTING_TEXT_TEMPLATES
-        .iter()
-        .find(|(name, _)| Some(*name) == listing.layout.as_deref())
-        .map(|(_, f)| *f);
     let mut out = if listing.intro.trim().is_empty() {
         listing.title.clone()
     } else {
-        render_text(&listing.intro)
+        markdown::text(&listing.intro)
     };
     out.push_str("\n\n");
     if listing.entries.is_empty() {
@@ -631,7 +605,7 @@ fn listing_text(listing: &Listing, list_page: usize, content: &Content) -> Strin
             let _ = write!(out, "  ({date})");
         }
         out.push('\n');
-        for line in detail.map(|f| f(entry, content)).unwrap_or_default() {
+        for line in layouts::entry_detail(listing, entry, content) {
             let _ = writeln!(out, "     {line}");
         }
     }
@@ -659,98 +633,15 @@ fn listing_footer(listing: &Listing, list_page: usize) -> String {
     out
 }
 
-// A doc rendered for the terminal: by the text version of its template if
-// there is one, else generically. Text versions share the HTML templates'
-// names (see view.rs), so `layout: post` selects both; one without a text
-// version falls back here rather than breaking SSH.
-// (Listings work differently: see LISTING_TEXT_TEMPLATES.)
-fn doc_text(doc: &Doc) -> Text<'static> {
-    TEXT_TEMPLATES
-        .iter()
-        .find(|(name, _)| Some(*name) == doc.layout.as_deref())
-        .map_or_else(|| default_doc_text(doc), |(_, template)| template(doc))
-}
-
-type TextTemplate = fn(&Doc) -> Text<'static>;
-const TEXT_TEMPLATES: [(&str, TextTemplate); 2] = [("post", post_text), ("project", project_text)];
-
-// Generic: the date (if any), then the body as text.
-fn default_doc_text(doc: &Doc) -> Text<'static> {
-    let body = render_text(&doc.body);
-    Text::from(match doc.date() {
-        Some(date) => format!("{date}\n\n{body}"),
-        None => body,
-    })
-}
-
-// `post`: bold title, dimmed date, then the body (leading H1 dropped, as on
-// the web, so the title isn't repeated).
-fn post_text(doc: &Doc) -> Text<'static> {
-    let mut lines = vec![Line::styled(
-        doc.title.clone(),
-        Style::default().add_modifier(Modifier::BOLD),
-    )];
-    if let Some(date) = doc.date() {
-        lines.push(Line::styled(
-            date.to_owned(),
-            Style::default().add_modifier(Modifier::DIM),
-        ));
-    }
-    lines.push(Line::default());
-    lines.extend(Text::from(render_text(&strip_leading_h1(&doc.body))).lines);
-    Text::from(lines)
-}
-
-// `project`: bold title, dimmed "language · repo", then the body (leading
-// H1 dropped).
-fn project_text(doc: &Doc) -> Text<'static> {
-    let mut lines = vec![Line::styled(
-        doc.title.clone(),
-        Style::default().add_modifier(Modifier::BOLD),
-    )];
-    let details: Vec<&str> = [doc.meta.get("language"), doc.meta.get("repo")]
-        .into_iter()
-        .flatten()
-        .map(String::as_str)
-        .collect();
-    if !details.is_empty() {
-        lines.push(Line::styled(
-            details.join(" · "),
-            Style::default().add_modifier(Modifier::DIM),
-        ));
-    }
-    lines.push(Line::default());
-    lines.extend(Text::from(render_text(&strip_leading_h1(&doc.body))).lines);
-    Text::from(lines)
-}
-
-// Markdown -> plain text. Drops syntax markers; blocks separated by blank
-// lines, list items prefixed with a bullet.
-// ponytail: ordered lists render as bullets too; number them if it matters.
-fn render_text(markdown: &str) -> String {
-    let mut out = String::new();
-    for event in Parser::new(markdown) {
-        match event {
-            Event::Text(t) | Event::Code(t) => out.push_str(&t),
-            Event::Start(Tag::Item) => out.push_str("- "),
-            Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Item | TagEnd::List(_)) => {
-                out.push('\n');
-            }
-            Event::End(TagEnd::Paragraph | TagEnd::Heading(_)) => out.push_str("\n\n"),
-            _ => {}
-        }
-    }
-    out.trim_end().to_owned()
-}
-
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
     use super::{
         App, CLEAR, Content, Doc, Listing, NavLink, Screen, Target, csi_end, digit_offset, dim,
-        doc_text, listing_footer, listing_text, nav_footer, nav_keys, render_text, ui,
+        listing_footer, listing_text, nav_footer, nav_keys, ui,
     };
     use crate::content::Entry;
+    use crate::layouts::doc_text;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
@@ -970,18 +861,6 @@ mod tests {
         assert_eq!(app.scroll, 0, "clamped at the top");
     }
 
-    #[test]
-    fn render_text_strips_syntax_and_bullets_lists() {
-        let out = render_text("# Title\n\nHello\n\n1. one\n2. two");
-        assert!(out.contains("Title"), "heading text kept");
-        assert!(!out.contains('#'), "heading marker dropped");
-        assert!(out.contains("Hello"));
-        assert!(
-            out.contains("- one") && out.contains("- two"),
-            "items bulleted"
-        );
-    }
-
     // Text content, one string per line (styles dropped).
     fn plain(text: &ratatui::text::Text) -> Vec<String> {
         text.lines
@@ -1011,24 +890,6 @@ mod tests {
             title_style.is_some_and(|s| s.add_modifier.contains(ratatui::style::Modifier::BOLD)),
             "title is bold"
         );
-    }
-
-    #[test]
-    fn text_templates_name_real_layouts() {
-        let layouts = crate::view::doc_layouts();
-        for (name, _) in super::TEXT_TEMPLATES {
-            assert!(
-                layouts.contains(&name),
-                "SSH template {name} has no HTML template"
-            );
-        }
-        let index_layouts = crate::view::index_layouts();
-        for (name, _) in super::LISTING_TEXT_TEMPLATES {
-            assert!(
-                index_layouts.contains(&name),
-                "SSH listing template {name} has no HTML template"
-            );
-        }
     }
 
     #[test]

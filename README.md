@@ -126,7 +126,7 @@ Available templates:
 
 The blog uses `default_layout: post`. The code section sets `default_layout: project` and `default_index_layout: projects`, which its Flexi subfolder inherits; the Colophon picks `layout: project` for itself. An unknown template name, or a page template used for a listing, stops the server at startup with an error naming the file.
 
-Templates are Rust functions (`DOC_TEMPLATES`/`INDEX_TEMPLATES` in `src/view.rs`). A template can also have a terminal version under the same name (`TEXT_TEMPLATES` in `src/ssh.rs`); without one, SSH shows the page generically. Over SSH a listing keeps its numbered entries, so a listing template's terminal version (`LISTING_TEXT_TEMPLATES`) adds detail lines under each entry instead.
+Templates live in `src/layouts/`, one file per template, with the HTML version and the terminal (SSH) version side by side. Without a terminal version, SSH shows the page generically. Over SSH a listing keeps its numbered entries, so a listing template's terminal version adds detail lines under each entry instead. To add a template, write `src/layouts/<name>.rs` and register it in `src/layouts/mod.rs` (a `mod` line and a registry entry).
 
 ### Dynamic routes
 
